@@ -1,12 +1,13 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,8 +36,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.memory.rounding.DefaultRoundingPolicy;
 import org.apache.arrow.memory.util.ArrowBufPointer;
@@ -63,13 +62,25 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.OversizedAllocationException;
-import org.apache.arrow.vector.util.Text;
-import org.apache.arrow.vector.util.TransferPair;
+import org.apache.arrow.vector.holders.BitHolder;
+import org.apache.arrow.vector.holders.IntHolder;
+import org.apache.arrow.vector.holders.NullableFloat4Holder;
+import org.apache.arrow.vector.holders.NullableUInt4Holder;
+import org.apache.arrow.vector.holders.NullableVar16CharHolder;
+import org.apache.arrow.vector.holders.NullableVarCharHolder;
+import org.apache.arrow.vector.holders.RepeatedFloat4Holder;
+import org.apache.arrow.vector.holders.RepeatedIntHolder;
+import org.apache.arrow.vector.holders.RepeatedVarBinaryHolder;
+import org.apache.arrow.vector.holders.UInt4Holder;
+import org.apache.arrow.vector.holders.VarCharHolder;
+import org.apache.arrow.memory.BufferAllocator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+
 public class TestValueVector {
+  //private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestValueVector.class);
 
   private static final String EMPTY_SCHEMA_PATH = "";
 
@@ -276,7 +287,7 @@ public class TestValueVector {
         assertEquals("non-zero data not expected at index: " + i, true, intVector.isNull(i));
       }
     }
-  }
+  
 
   @Test /* VarCharVector */
   public void testSizeOfValueBuffer() {
@@ -295,11 +306,6 @@ public class TestValueVector {
     }
   }
 
-  @Test /* Float4Vector */
-  public void testFixedType3() {
-    try (final Float4Vector floatVector = new Float4Vector(EMPTY_SCHEMA_PATH, allocator)) {
-      boolean error = false;
-      int initialCapacity = 16;
 
       /* we should not throw exception for these values of capacity */
       floatVector.setInitialCapacity(MAX_VALUE_COUNT - 1);
@@ -393,7 +399,6 @@ public class TestValueVector {
         assertEquals("non-zero data not expected at index: " + i, true, floatVector.isNull(i));
       }
     }
-  }
 
   @Test /* Float8Vector */
   public void testFixedType4() {
@@ -619,6 +624,8 @@ public class TestValueVector {
       vector.set(12, 78.8f);
       vector.set(14, 89.5f);
 
+      // Ensure null value throws.
+      boolean b = false;
       try {
         vector.set(initialCapacity, 90.5f);
       } catch (IndexOutOfBoundsException ie) {
@@ -725,6 +732,7 @@ public class TestValueVector {
           j++;
         }
       }
+      mutator.setValueCount(nRecords);
 
       vector.setValueCount(1024);
       Field field = vector.getField();
@@ -763,24 +771,6 @@ public class TestValueVector {
           assertEquals("unexpected value at index: " + i, j, vector.get(i));
           j++;
         }
-      }
-
-      /* reset the vector */
-      int capacityBeforeReset = vector.getValueCapacity();
-      vector.reset();
-
-      /* capacity shouldn't change after reset */
-      assertEquals(capacityBeforeReset, vector.getValueCapacity());
-
-      /* vector data should have been zeroed out */
-      for (int i = 0; i < capacityBeforeReset; i++) {
-        assertTrue("non-null data not expected at index: " + i, vector.isNull(i));
-      }
-
-      vector.allocateNew(initialCapacity * 4);
-      // vector has been erased
-      for (int i = 0; i < initialCapacity * 4; i++) {
-        assertTrue("non-null data not expected at index: " + i, vector.isNull(i));
       }
     }
   }
@@ -828,49 +818,6 @@ public class TestValueVector {
         } else {
           assertTrue("unexpected non-null value at index: " + i, vector.isNull(i));
         }
-      }
-
-      vector.zeroVector();
-
-      for (int i = 0; i < vector.getValueCapacity(); i += 2) {
-        vector.set(i, baseValue + i);
-      }
-
-      for (int i = 0; i < vector.getValueCapacity(); i++) {
-        if (i % 2 == 0) {
-          assertFalse("unexpected null value at index: " + i, vector.isNull(i));
-          assertEquals("unexpected value at index: " + i, (baseValue + i), vector.get(i));
-        } else {
-          assertTrue("unexpected non-null value at index: " + i, vector.isNull(i));
-        }
-      }
-
-      int valueCapacityBeforeRealloc = vector.getValueCapacity();
-      vector.setSafe(valueCapacityBeforeRealloc + 1000, 400000000);
-      assertTrue(vector.getValueCapacity() >= valueCapacity * 4);
-
-      for (int i = 0; i < vector.getValueCapacity(); i++) {
-        if (i == (valueCapacityBeforeRealloc + 1000)) {
-          assertFalse("unexpected null value at index: " + i, vector.isNull(i));
-          assertEquals("unexpected value at index: " + i, 400000000, vector.get(i));
-        } else if (i < valueCapacityBeforeRealloc && (i % 2) == 0) {
-          assertFalse("unexpected null value at index: " + i, vector.isNull(i));
-          assertEquals("unexpected value at index: " + i, baseValue + i, vector.get(i));
-        } else {
-          assertTrue("unexpected non-null value at index: " + i, vector.isNull(i));
-        }
-      }
-
-      /* reset the vector */
-      int valueCapacityBeforeReset = vector.getValueCapacity();
-      vector.reset();
-
-      /* capacity shouldn't change after reset */
-      assertEquals(valueCapacityBeforeReset, vector.getValueCapacity());
-
-      /* vector data should be zeroed out */
-      for (int i = 0; i < valueCapacityBeforeReset; i++) {
-        assertTrue("non-null data not expected at index: " + i, vector.isNull(i));
       }
     }
   }
@@ -1282,8 +1229,6 @@ public class TestValueVector {
           assertTrue("unexpected non-null value at index: " + i, toVector.isNull(i));
         }
       }
-
-      toVector.close();
     }
   }
 
