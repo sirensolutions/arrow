@@ -18,7 +18,6 @@
   </parent>
   <artifactId>arrow-vector</artifactId>
   <name>Arrow Vectors</name>
-  <description>An off-heap reference implementation for Arrow columnar data format.</description>
 
   <dependencies>
 
@@ -33,6 +32,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>joda-time</groupId>
+      <artifactId>joda-time</artifactId>
+      <version>2.9.9</version>
+    </dependency>
+    <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
     </dependency>
@@ -43,6 +47,11 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.carrotsearch</groupId>
+      <artifactId>hppc</artifactId>
+      <version>0.7.2</version>
     </dependency>
     <dependency>
       <groupId>commons-codec</groupId>
@@ -253,39 +262,5 @@
   </build>
 
 
-  <profiles>
-    <profile>
-      <!-- This profile turns on integration testing. It activates the failsafe plugin and will run any tests
-      with the 'IT' prefix. This should be run in a separate CI build or on developers machines as it potentially
-      uses quite a bit of memory. Activate the tests by adding -Pintegration-tests to your maven command line -->
-      <id>integration-tests</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-failsafe-plugin</artifactId>
-            <configuration>
-              <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
-              <systemPropertyVariables>
-                <java.io.tmpdir>${project.build.directory}</java.io.tmpdir>
-                <io.netty.tryReflectionSetAccessible>true</io.netty.tryReflectionSetAccessible>
-                <arrow.memory.debug.allocator>false</arrow.memory.debug.allocator>
-                <user.timezone>UTC</user.timezone>
-              </systemPropertyVariables>
-              <argLine />
-            </configuration>
-            <executions>
-              <execution>
-                <goals>
-                  <goal>integration-test</goal>
-                  <goal>verify</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-  </profiles>
 
 </project>
