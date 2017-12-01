@@ -28,6 +28,49 @@
   </modules>
 
   <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <shadedArtifactAttached>false</shadedArtifactAttached>
+              <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
+              <relocations>
+                <relocation>
+                  <pattern>io.netty</pattern>
+                  <shadedPattern>siren.io.netty</shadedPattern>
+                </relocation>
+              </relocations>
+              <artifactSet>
+                <excludes>
+                  <exclude>org.slf4j</exclude>
+                  <exclude>com.google.code.findbugs</exclude>
+                  <exclude>com.google.guava</exclude>
+                </excludes>
+              </artifactSet>
+              <!--to prevent the Invalid signature file error -->
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 
   <profiles>
