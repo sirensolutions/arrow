@@ -17,6 +17,7 @@
     <version>4.0.0</version>
   </parent>
   <artifactId>arrow-memory</artifactId>
+  <version>siren-0.7.1</version>
   <name>Arrow Memory</name>
   <packaging>pom</packaging>
 
@@ -26,4 +27,27 @@
     <module>memory-netty</module>
   </modules>
 
+  <build>
+  </build>
+
+  <profiles>
+    <!-- To deploy to artifactory -->
+    <profile>
+      <id>artifactory</id>
+
+      <distributionManagement>
+        <repository>
+          <id>artifactory-releases</id>
+          <name>artifactory-releases</name>
+          <url>${artifactory.url}/libs-release-local</url>
+        </repository>
+        <snapshotRepository>
+          <id>artifactory-snapshots</id>
+          <name>artifactory-snapshots</name>
+          <url>${artifactory.url}/libs-snapshot-local</url>
+        </snapshotRepository>
+      </distributionManagement>
+
+    </profile>
+  </profiles>
 </project>
