@@ -19,6 +19,10 @@
   <artifactId>arrow-memory</artifactId>
   <name>Arrow Memory</name>
 
+  <properties>
+    <netty.version>siren-4.0.49.Final</netty.version>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>com.google.code.findbugs</groupId>
@@ -27,10 +31,12 @@
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-buffer</artifactId>
+      <version>${netty.version}</version>
     </dependency>
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-common</artifactId>
+      <version>${netty.version}</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
