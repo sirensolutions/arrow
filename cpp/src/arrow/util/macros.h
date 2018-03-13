@@ -26,7 +26,7 @@
 #endif
 
 #define ARROW_UNUSED(x) (void)x
-
+#define ARROW_ARG_UNUSED(x)
 //
 // GCC can be told that a certain branch is not likely to be taken (for
 // instance, a CHECK failure), and use that information in static analysis.
@@ -57,6 +57,21 @@
 #else
 #define ARROW_MUST_USE_RESULT
 #endif
+
+// ----------------------------------------------------------------------
+// C++/CLI support macros (see ARROW-1134)
+
+#ifndef NULLPTR
+
+#ifdef __cplusplus_cli
+#define NULLPTR __nullptr
+#else
+#define NULLPTR nullptr
+#endif
+
+#endif  // ifndef NULLPTR
+
+// ----------------------------------------------------------------------
 
 // macros to disable padding
 // these macros are portable across different compilers and platforms

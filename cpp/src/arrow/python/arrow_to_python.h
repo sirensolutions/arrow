@@ -48,13 +48,26 @@ namespace py {
 ARROW_EXPORT
 Status ReadSerializedObject(io::RandomAccessFile* src, SerializedPyObject* out);
 
+/// \brief Reconstruct SerializedPyObject from representation produced by
+/// SerializedPyObject::GetComponents.
+///
+/// \param[in] num_tensors number of tensors in the object
+/// \param[in] num_buffers number of buffers in the object
+/// \param[in] data a list containing pyarrow.Buffer instances. Must be 1 +
+/// num_tensors * 2 + num_buffers in length
+/// \param[out] out the reconstructed object
+/// \return Status
+ARROW_EXPORT
+Status GetSerializedFromComponents(int num_tensors, int num_buffers, PyObject* data,
+                                   SerializedPyObject* out);
+
 /// \brief Reconstruct Python object from Arrow-serialized representation
 /// \param[in] context Serialization context which contains custom serialization
 /// and deserialization callbacks. Can be any Python object with a
 /// _serialize_callback method for serialization and a _deserialize_callback
 /// method for deserialization. If context is None, no custom serialization
 /// will be attempted.
-/// \param[in] object
+/// \param[in] object object to deserialize
 /// \param[in] base a Python object holding the underlying data that any NumPy
 /// arrays will reference, to avoid premature deallocation
 /// \param[out] out the returned object

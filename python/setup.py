@@ -82,6 +82,7 @@ class build_ext(_build_ext):
     user_options = ([('extra-cmake-args=', None, 'extra arguments for CMake'),
                      ('build-type=', None, 'build type (debug or release)'),
                      ('with-parquet', None, 'build the Parquet extension'),
+                     ('with-static-parquet', None, 'link parquet statically'),
                      ('with-plasma', None, 'build the Plasma extension'),
                      ('bundle-arrow-cpp', None,
                       'bundle the Arrow C++ libraries')] +
@@ -102,6 +103,10 @@ class build_ext(_build_ext):
 
         self.with_parquet = strtobool(
             os.environ.get('PYARROW_WITH_PARQUET', '0'))
+        self.with_static_parquet = strtobool(
+            os.environ.get('PYARROW_WITH_STATIC_PARQUET', '0'))
+        self.with_static_boost = strtobool(
+            os.environ.get('PYARROW_WITH_STATIC_BOOST', '1'))
         self.with_plasma = strtobool(
             os.environ.get('PYARROW_WITH_PLASMA', '0'))
         self.bundle_arrow_cpp = strtobool(
@@ -144,6 +149,10 @@ class build_ext(_build_ext):
 
         if self.with_parquet:
             cmake_options.append('-DPYARROW_BUILD_PARQUET=on')
+        if self.with_static_parquet:
+            cmake_options.append('-DPYARROW_PARQUET_USE_SHARED=off')
+        if not self.with_static_boost:
+            cmake_options.append('-DPYARROW_BOOST_USE_SHARED=on')
 
         if self.with_plasma:
             cmake_options.append('-DPYARROW_BUILD_PLASMA=on')
@@ -220,17 +229,19 @@ class build_ext(_build_ext):
             build_prefix = self.build_type
 
         if self.bundle_arrow_cpp:
-            print(pjoin(build_prefix, 'include'), pjoin(build_lib, 'pyarrow'))
-            if os.path.exists(pjoin(build_lib, 'pyarrow', 'include')):
-                shutil.rmtree(pjoin(build_lib, 'pyarrow', 'include'))
-            shutil.move(pjoin(build_prefix, 'include'),
-                        pjoin(build_lib, 'pyarrow'))
+            print(pjoin(build_lib, 'pyarrow'))
             move_shared_libs(build_prefix, build_lib, "arrow")
             move_shared_libs(build_prefix, build_lib, "arrow_python")
             if self.with_plasma:
                 move_shared_libs(build_prefix, build_lib, "plasma")
-            if self.with_parquet:
+            if self.with_parquet and not self.with_static_parquet:
                 move_shared_libs(build_prefix, build_lib, "parquet")
+
+        print('Bundling includes: ' + pjoin(build_prefix, 'include'))
+        if os.path.exists(pjoin(build_lib, 'pyarrow', 'include')):
+            shutil.rmtree(pjoin(build_lib, 'pyarrow', 'include'))
+        shutil.move(pjoin(build_prefix, 'include'),
+                    pjoin(build_lib, 'pyarrow'))
 
         # Move the built C-extension to the place expected by the Python build
         self._found_names = []
@@ -381,6 +392,23 @@ class BinaryDistribution(Distribution):
     def has_ext_modules(foo):
         return True
 
+
+install_requires = ['numpy >= 1.10', 'six >= 1.0.0']
+
+if sys.version_info.major == 2:
+    install_requires.append('futures')
+
+
+def parse_version(root):
+    from setuptools_scm import version_from_scm
+    import setuptools_scm.git
+    describe = setuptools_scm.git.DEFAULT_DESCRIBE + " --match 'apache-arrow-[0-9]*'"
+    version = setuptools_scm.git.parse(root, describe)
+    if not version:
+        return version_from_scm(root)
+    else:
+        return version
+
 setup(
     name="pyarrow",
     packages=['pyarrow', 'pyarrow.tests'],
@@ -390,19 +418,18 @@ setup(
     distclass=BinaryDistribution,
     # Dummy extension to trigger build_ext
     ext_modules=[Extension('__dummy__', sources=[])],
-
     cmdclass={
         'clean': clean,
         'build_ext': build_ext
     },
-    entry_points = {
+    entry_points={
         'console_scripts': [
             'plasma_store = pyarrow:_plasma_store_entry_point'
         ]
     },
-    use_scm_version={"root": "..", "relative_to": __file__},
+    use_scm_version={"root": "..", "relative_to": __file__, "parse": parse_version},
     setup_requires=['setuptools_scm', 'cython >= 0.23'],
-    install_requires=['numpy >= 1.10', 'six >= 1.0.0'],
+    install_requires=install_requires,
     tests_require=['pytest'],
     description="Python library for Apache Arrow",
     long_description=long_description,

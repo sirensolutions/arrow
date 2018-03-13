@@ -30,7 +30,6 @@
 #include "arrow/buffer.h"
 #include "arrow/builder.h"
 #include "arrow/memory_pool.h"
-#include "arrow/table.h"
 #include "arrow/test-util.h"
 
 namespace arrow {
@@ -72,6 +71,12 @@ std::shared_ptr<Array> TestBase::MakeRandomArray(int64_t length, int64_t null_co
   std::shared_ptr<Buffer> null_bitmap = MakeRandomNullBitmap(length, null_count);
 
   return std::make_shared<ArrayType>(length, data, null_bitmap, null_count);
+}
+
+template <>
+std::shared_ptr<Array> TestBase::MakeRandomArray<NullArray>(int64_t length,
+                                                            int64_t null_count) {
+  return std::make_shared<NullArray>(length);
 }
 
 template <>

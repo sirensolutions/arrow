@@ -17,7 +17,8 @@
 
 CLEANFILES =
 
-EXTRA_DIST =
+EXTRA_DIST =					\
+	meson.build
 
 AM_CPPFLAGS =					\
 	-I$(top_builddir)			\
@@ -44,10 +45,12 @@ libarrow_glib_la_headers =			\
 	array.h					\
 	array-builder.h				\
 	arrow-glib.h				\
+	basic-array.h				\
 	basic-data-type.h			\
 	buffer.h				\
 	chunked-array.h				\
 	column.h				\
+	composite-array.h			\
 	composite-data-type.h			\
 	data-type.h				\
 	error.h					\
@@ -56,6 +59,7 @@ libarrow_glib_la_headers =			\
 	record-batch.h				\
 	schema.h				\
 	table.h					\
+	table-builder.h				\
 	tensor.h				\
 	type.h
 
@@ -84,18 +88,20 @@ libarrow_glib_la_generated_sources =		\
 	$(libarrow_glib_la_generated_headers)
 
 libarrow_glib_la_sources =			\
-	array.cpp				\
 	array-builder.cpp			\
+	basic-array.cpp				\
 	basic-data-type.cpp			\
 	buffer.cpp				\
 	chunked-array.cpp			\
 	column.cpp				\
+	composite-array.cpp			\
 	composite-data-type.cpp			\
 	error.cpp				\
 	field.cpp				\
 	record-batch.cpp			\
 	schema.cpp				\
 	table.cpp				\
+	table-builder.cpp			\
 	tensor.cpp				\
 	type.cpp				\
 	$(libarrow_glib_la_headers)		\
@@ -122,6 +128,7 @@ libarrow_glib_la_cpp_headers =			\
 	array.hpp				\
 	array-builder.hpp			\
 	arrow-glib.hpp				\
+	basic-array.hpp				\
 	basic-data-type.hpp			\
 	buffer.hpp				\
 	chunked-array.hpp			\
@@ -132,6 +139,7 @@ libarrow_glib_la_cpp_headers =			\
 	record-batch.hpp			\
 	schema.hpp				\
 	table.hpp				\
+	table-builder.hpp			\
 	tensor.hpp				\
 	type.hpp
 
@@ -199,20 +207,23 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA =				\
 	arrow-glib.pc
 
-# GObject Introspection
+if HAVE_INTROSPECTION
 -include $(INTROSPECTION_MAKEFILE)
 INTROSPECTION_GIRS =
 INTROSPECTION_SCANNER_ARGS =
+INTROSPECTION_SCANNER_ENV =
+if OS_MACOS
+INTROSPECTION_SCANNER_ENV +=			\
+	ARCHFLAGS=
+endif
 INTROSPECTION_COMPILER_ARGS =
 
-if HAVE_INTROSPECTION
 Arrow-1.0.gir: libarrow-glib.la
 Arrow_1_0_gir_PACKAGES =			\
-	gobject-2.0				\
 	gio-2.0
-Arrow_1_0_gir_EXPORT_PACKAGES = arrow
+Arrow_1_0_gir_EXPORT_PACKAGES =			\
+	arrow-glib
 Arrow_1_0_gir_INCLUDES =			\
-	GObject-2.0				\
 	Gio-2.0
 Arrow_1_0_gir_CFLAGS =				\
 	$(AM_CPPFLAGS)

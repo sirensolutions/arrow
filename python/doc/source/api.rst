@@ -50,13 +50,61 @@ Type and Schema Factory Functions
    date64
    binary
    string
-   decimal
+   decimal128
    list_
    struct
    dictionary
    field
    schema
    from_numpy_dtype
+
+.. currentmodule:: pyarrow.types
+.. _api.types.checking:
+
+Type checking functions
+-----------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   is_boolean
+   is_integer
+   is_signed_integer
+   is_unsigned_integer
+   is_int8
+   is_int16
+   is_int32
+   is_int64
+   is_uint8
+   is_uint16
+   is_uint32
+   is_uint64
+   is_floating
+   is_float16
+   is_float32
+   is_float64
+   is_decimal
+   is_list
+   is_struct
+   is_union
+   is_nested
+   is_temporal
+   is_timestamp
+   is_date
+   is_date32
+   is_date64
+   is_time
+   is_time32
+   is_time64
+   is_null
+   is_binary
+   is_unicode
+   is_string
+   is_fixed_size_binary
+   is_map
+   is_dictionary
+
+.. currentmodule:: pyarrow
 
 .. _api.value:
 
@@ -99,6 +147,7 @@ Array Types
 .. autosummary::
    :toctree: generated/
 
+   array
    Array
    BooleanArray
    DictionaryArray
@@ -122,7 +171,7 @@ Array Types
    Date32Array
    Date64Array
    TimestampArray
-   DecimalArray
+   Decimal128Array
    ListArray
 
 .. _api.table:
@@ -135,6 +184,8 @@ Tables and Record Batches
 .. autosummary::
    :toctree: generated/
 
+   column
+   chunked_array
    ChunkedArray
    Column
    RecordBatch
@@ -159,7 +210,11 @@ Input / Output and Shared Memory
    :toctree: generated/
 
    allocate_buffer
+   compress
+   decompress
+   frombuffer
    Buffer
+   ResizableBuffer
    BufferReader
    BufferOutputStream
    NativeFile
@@ -205,6 +260,7 @@ Serialization and IPC
    serialize
    serialize_to
    deserialize
+   deserialize_components
    deserialize_from
    read_serialized
    SerializedPyObject
@@ -279,6 +335,7 @@ Apache Parquet
 
    ParquetDataset
    ParquetFile
+   ParquetWriter
    read_table
    read_metadata
    read_pandas

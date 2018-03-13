@@ -32,6 +32,7 @@
 #include "arrow/ipc/feather-internal.h"
 #include "arrow/ipc/feather_generated.h"
 #include "arrow/ipc/util.h"  // IWYU pragma: keep
+#include "arrow/record_batch.h"
 #include "arrow/status.h"
 #include "arrow/table.h"
 #include "arrow/type.h"
@@ -370,8 +371,9 @@ class TableReader::TableReaderImpl {
     buffers.push_back(SliceBuffer(buffer, offset, buffer->size() - offset));
 
     auto arr_data =
-        std::make_shared<ArrayData>(type, meta->length(), buffers, meta->null_count());
-    return MakeArray(arr_data, out);
+        ArrayData::Make(type, meta->length(), std::move(buffers), meta->null_count());
+    *out = MakeArray(arr_data);
+    return Status::OK();
   }
 
   bool HasDescription() const { return metadata_->HasDescription(); }
@@ -477,7 +479,6 @@ fbs::Type ToFlatbufferType(Type::type type) {
       return fbs::Type_INT64;
     default:
       DCHECK(false) << "Cannot reach this code";
-      break;
   }
   // prevent compiler warning
   return fbs::Type_MIN;
@@ -491,7 +492,8 @@ static Status SanitizeUnsupportedTypes(const Array& values, std::shared_ptr<Arra
                                          values.null_bitmap(), values.null_count());
     return Status::OK();
   } else {
-    return MakeArray(values.data(), out);
+    *out = MakeArray(values.data());
+    return Status::OK();
   }
 }
 
@@ -521,10 +523,8 @@ class TableWriter::TableWriterImpl : public ArrayVisitor {
     uint32_t buffer_size = static_cast<uint32_t>(bytes_written);
 
     // Footer: metadata length, magic bytes
-    RETURN_NOT_OK(
-        stream_->Write(reinterpret_cast<const uint8_t*>(&buffer_size), sizeof(uint32_t)));
-    return stream_->Write(reinterpret_cast<const uint8_t*>(kFeatherMagicBytes),
-                          strlen(kFeatherMagicBytes));
+    RETURN_NOT_OK(stream_->Write(&buffer_size, sizeof(uint32_t)));
+    return stream_->Write(kFeatherMagicBytes, strlen(kFeatherMagicBytes));
   }
 
   Status LoadArrayMetadata(const Array& values, ArrayMetadata* meta) {
@@ -555,12 +555,12 @@ class TableWriter::TableWriterImpl : public ArrayVisitor {
     if (values.null_count() > 0) {
       // We assume there is one bit for each value in values.nulls, aligned on a
       // byte boundary, and we write this much data into the stream
+      int64_t null_bitmap_size = GetOutputLength(BitUtil::BytesForBits(values.length()));
       if (values.null_bitmap()) {
         RETURN_NOT_OK(WritePadded(stream_.get(), values.null_bitmap()->data(),
-                                  values.null_bitmap()->size(), &bytes_written));
+                                  null_bitmap_size, &bytes_written));
       } else {
-        RETURN_NOT_OK(WritePaddedBlank(
-            stream_.get(), BitUtil::BytesForBits(values.length()), &bytes_written));
+        RETURN_NOT_OK(WritePaddedBlank(stream_.get(), null_bitmap_size, &bytes_written));
       }
       meta->total_bytes += bytes_written;
     }
@@ -632,19 +632,19 @@ class TableWriter::TableWriterImpl : public ArrayVisitor {
 #define VISIT_PRIMITIVE(TYPE) \
   Status Visit(const TYPE& values) override { return WritePrimitiveValues(values); }
 
-  VISIT_PRIMITIVE(BooleanArray);
-  VISIT_PRIMITIVE(Int8Array);
-  VISIT_PRIMITIVE(Int16Array);
-  VISIT_PRIMITIVE(Int32Array);
-  VISIT_PRIMITIVE(Int64Array);
-  VISIT_PRIMITIVE(UInt8Array);
-  VISIT_PRIMITIVE(UInt16Array);
-  VISIT_PRIMITIVE(UInt32Array);
-  VISIT_PRIMITIVE(UInt64Array);
-  VISIT_PRIMITIVE(FloatArray);
-  VISIT_PRIMITIVE(DoubleArray);
-  VISIT_PRIMITIVE(BinaryArray);
-  VISIT_PRIMITIVE(StringArray);
+  VISIT_PRIMITIVE(BooleanArray)
+  VISIT_PRIMITIVE(Int8Array)
+  VISIT_PRIMITIVE(Int16Array)
+  VISIT_PRIMITIVE(Int32Array)
+  VISIT_PRIMITIVE(Int64Array)
+  VISIT_PRIMITIVE(UInt8Array)
+  VISIT_PRIMITIVE(UInt16Array)
+  VISIT_PRIMITIVE(UInt32Array)
+  VISIT_PRIMITIVE(UInt64Array)
+  VISIT_PRIMITIVE(FloatArray)
+  VISIT_PRIMITIVE(DoubleArray)
+  VISIT_PRIMITIVE(BinaryArray)
+  VISIT_PRIMITIVE(StringArray)
 
 #undef VISIT_PRIMITIVE
 

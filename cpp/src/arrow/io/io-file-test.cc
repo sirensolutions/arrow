@@ -135,7 +135,7 @@ TEST_F(TestFileOutputStream, Close) {
   OpenFile();
 
   const char* data = "testdata";
-  ASSERT_OK(file_->Write(reinterpret_cast<const uint8_t*>(data), strlen(data)));
+  ASSERT_OK(file_->Write(data, strlen(data)));
 
   int fd = file_->file_descriptor();
   ASSERT_OK(file_->Close());
@@ -158,7 +158,7 @@ TEST_F(TestFileOutputStream, InvalidWrites) {
 
   const char* data = "";
 
-  ASSERT_RAISES(IOError, file_->Write(reinterpret_cast<const uint8_t*>(data), -1));
+  ASSERT_RAISES(IOError, file_->Write(data, -1));
 }
 
 TEST_F(TestFileOutputStream, Tell) {
@@ -170,7 +170,7 @@ TEST_F(TestFileOutputStream, Tell) {
   ASSERT_EQ(0, position);
 
   const char* data = "testdata";
-  ASSERT_OK(file_->Write(reinterpret_cast<const uint8_t*>(data), 8));
+  ASSERT_OK(file_->Write(data, 8));
   ASSERT_OK(file_->Tell(&position));
   ASSERT_EQ(8, position);
 }
@@ -179,7 +179,7 @@ TEST_F(TestFileOutputStream, TruncatesNewFile) {
   ASSERT_OK(FileOutputStream::Open(path_, &file_));
 
   const char* data = "testdata";
-  ASSERT_OK(file_->Write(reinterpret_cast<const uint8_t*>(data), strlen(data)));
+  ASSERT_OK(file_->Write(data, strlen(data)));
   ASSERT_OK(file_->Close());
 
   ASSERT_OK(FileOutputStream::Open(path_, &file_));
@@ -393,9 +393,9 @@ TEST_F(TestReadableFile, ThreadSafety) {
   ASSERT_OK(ReadableFile::Open(path_, &pool, &file_));
 
   std::atomic<int> correct_count(0);
-  const int niter = 10000;
+  constexpr int niter = 10000;
 
-  auto ReadData = [&correct_count, &data, niter, this]() {
+  auto ReadData = [&correct_count, &data, this, niter]() {
     std::shared_ptr<Buffer> buffer;
 
     for (int i = 0; i < niter; ++i) {
@@ -583,13 +583,12 @@ TEST_F(TestMemoryMappedFile, ThreadSafety) {
 
   std::shared_ptr<MemoryMappedFile> file;
   ASSERT_OK(MemoryMappedFile::Open(path, FileMode::READWRITE, &file));
-  ASSERT_OK(file->Write(reinterpret_cast<const uint8_t*>(data.c_str()),
-                        static_cast<int64_t>(data.size())));
+  ASSERT_OK(file->Write(data.c_str(), static_cast<int64_t>(data.size())));
 
   std::atomic<int> correct_count(0);
-  const int niter = 10000;
+  constexpr int niter = 10000;
 
-  auto ReadData = [&correct_count, &data, niter, &file]() {
+  auto ReadData = [&correct_count, &data, &file, niter]() {
     std::shared_ptr<Buffer> buffer;
 
     for (int i = 0; i < niter; ++i) {

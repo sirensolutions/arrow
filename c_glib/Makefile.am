@@ -19,11 +19,15 @@ ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
 
 SUBDIRS =					\
 	arrow-glib				\
+	arrow-gpu-glib				\
 	doc					\
-	example
+	example					\
+	tool
 
 EXTRA_DIST =					\
 	README.md				\
+	meson.build				\
+	meson_options.txt			\
 	test
 
 arrow_glib_docdir = ${datarootdir}/doc/arrow-glib

@@ -45,7 +45,7 @@ namespace arrow {
 #define ARROW_CHECK(condition)                           \
   (condition) ? 0                                        \
               : ::arrow::internal::FatalLog(ARROW_FATAL) \
-                    << __FILE__ << __LINE__ << " Check failed: " #condition " "
+                    << __FILE__ << ":" << __LINE__ << " Check failed: " #condition " "
 
 #ifdef NDEBUG
 #define ARROW_DFATAL ARROW_WARNING
@@ -90,7 +90,7 @@ namespace internal {
 class NullLog {
  public:
   template <class T>
-  NullLog& operator<<(const T& t) {
+  NullLog& operator<<(const T& ARROW_ARG_UNUSED(t)) {
     return *this;
   }
 };

@@ -42,7 +42,19 @@ class RandomAccessFile;
 
 namespace ipc {
 
-enum class MetadataVersion : char { V1, V2, V3 };
+enum class MetadataVersion : char {
+  /// 0.1.0
+  V1,
+
+  /// 0.2.0
+  V2,
+
+  /// 0.3.0 to 0.7.1
+  V3,
+
+  /// >= 0.8.0
+  V4
+};
 
 // ARROW-109: We set this number arbitrarily to help catch user mistakes. For
 // deeply nested schemas, it is expected the user will indicate explicitly the
@@ -53,6 +65,7 @@ constexpr int kMaxNestingDepth = 64;
 // individual fields metadata can be retrieved from very large schema without
 //
 
+/// \class Message
 /// \brief An IPC message including metadata and body
 class ARROW_EXPORT Message {
  public:
@@ -68,8 +81,9 @@ class ARROW_EXPORT Message {
   /// \brief Create and validate a Message instance from two buffers
   ///
   /// \param[in] metadata a buffer containing the Flatbuffer metadata
-  /// \param[in] body a buffer containing the message body, which may be nullptr
+  /// \param[in] body a buffer containing the message body, which may be null
   /// \param[out] out the created message
+  /// \return Status
   static Status Open(const std::shared_ptr<Buffer>& metadata,
                      const std::shared_ptr<Buffer>& body, std::unique_ptr<Message>* out);
 
@@ -77,16 +91,16 @@ class ARROW_EXPORT Message {
   /// \param[in] metadata containing a serialized Message flatbuffer
   /// \param[in] stream an InputStream
   /// \param[out] out the created Message
+  /// \return Status
   ///
   /// \note If stream supports zero-copy, this is zero-copy
   static Status ReadFrom(const std::shared_ptr<Buffer>& metadata, io::InputStream* stream,
                          std::unique_ptr<Message>* out);
 
-  /// \brief Write length-prefixed metadata and body to output stream
+  /// \brief Return true if message type and contents are equal
   ///
-  /// \param[in] file output stream to write to
-  /// \param[out] output_length the number of bytes written
-  /// \return Status
+  /// \param other another message
+  /// \return true if contents equal
   bool Equals(const Message& other) const;
 
   /// \brief the Message metadata
@@ -96,11 +110,13 @@ class ARROW_EXPORT Message {
 
   /// \brief the Message body, if any
   ///
-  /// \return buffer is nullptr if no body
+  /// \return buffer is null if no body
   std::shared_ptr<Buffer> body() const;
 
+  /// \brief The Message type
   Type type() const;
 
+  /// \brief The Message metadata version
   MetadataVersion metadata_version() const;
 
   const void* header() const;
@@ -128,31 +144,18 @@ class ARROW_EXPORT MessageReader {
  public:
   virtual ~MessageReader() = default;
 
+  /// \brief Create MessageReader that reads from InputStream
+  static std::unique_ptr<MessageReader> Open(io::InputStream* stream);
+
+  /// \brief Create MessageReader that reads from owned InputStream
+  static std::unique_ptr<MessageReader> Open(
+      const std::shared_ptr<io::InputStream>& owned_stream);
+
   /// \brief Read next Message from the interface
   ///
   /// \param[out] message an arrow::ipc::Message instance
   /// \return Status
   virtual Status ReadNextMessage(std::unique_ptr<Message>* message) = 0;
-};
-
-/// \brief Implementation of MessageReader that reads from InputStream
-/// \since 0.5.0
-class ARROW_EXPORT InputStreamMessageReader : public MessageReader {
- public:
-  explicit InputStreamMessageReader(io::InputStream* stream) : stream_(stream) {}
-
-  explicit InputStreamMessageReader(const std::shared_ptr<io::InputStream>& owned_stream)
-      : InputStreamMessageReader(owned_stream.get()) {
-    owned_stream_ = owned_stream;
-  }
-
-  ~InputStreamMessageReader();
-
-  Status ReadNextMessage(std::unique_ptr<Message>* message) override;
-
- private:
-  io::InputStream* stream_;
-  std::shared_ptr<io::InputStream> owned_stream_;
 };
 
 /// \brief Read encapulated RPC message from position in file
@@ -175,7 +178,7 @@ Status ReadMessage(const int64_t offset, const int32_t metadata_length,
 
 /// \brief Read encapulated RPC message (metadata and body) from InputStream
 ///
-/// Read length-prefixed message with as-yet unknown length. Returns nullptr if
+/// Read length-prefixed message with as-yet unknown length. Returns null if
 /// there are not enough bytes available or the message length is 0 (e.g. EOS
 /// in a stream)
 ARROW_EXPORT

@@ -22,8 +22,8 @@
 
 #include "arrow/array.h"
 #include "arrow/pretty_print.h"
+#include "arrow/record_batch.h"
 #include "arrow/status.h"
-#include "arrow/table.h"
 #include "arrow/type.h"
 #include "arrow/type_traits.h"
 #include "arrow/util/logging.h"
@@ -170,7 +170,7 @@ class ArrayPrinter : public PrettyPrinter {
   }
 
   template <typename T>
-  inline typename std::enable_if<std::is_same<DecimalArray, T>::value, void>::type
+  inline typename std::enable_if<std::is_same<Decimal128Array, T>::value, void>::type
   WriteDataValues(const T& array) {
     for (int i = 0; i < array.length(); ++i) {
       if (i > 0) {
@@ -199,7 +199,10 @@ class ArrayPrinter : public PrettyPrinter {
     }
   }
 
-  Status Visit(const NullArray& array) { return Status::OK(); }
+  Status Visit(const NullArray& array) {
+    (*sink_) << array.length() << " nulls";
+    return Status::OK();
+  }
 
   template <typename T>
   typename std::enable_if<std::is_base_of<PrimitiveArray, T>::value ||
@@ -213,7 +216,7 @@ class ArrayPrinter : public PrettyPrinter {
     return Status::OK();
   }
 
-  Status Visit(const IntervalArray& array) { return Status::NotImplemented("interval"); }
+  Status Visit(const IntervalArray&) { return Status::NotImplemented("interval"); }
 
   Status WriteValidityBitmap(const Array& array);
 

@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pickle
+
 import pytest
 import numpy as np
 
@@ -67,6 +69,56 @@ def test_type_list():
     field = pa.field('my_item', pa.string())
     l2 = pa.list_(field)
     assert str(l2) == 'list<my_item: string>'
+
+
+def test_type_comparisons():
+    val = pa.int32()
+    assert val == pa.int32()
+    assert val == 'int32'
+
+    with pytest.raises(TypeError):
+        val == 5
+
+
+def test_type_for_alias():
+    cases = [
+        ('i1', pa.int8()),
+        ('int8', pa.int8()),
+        ('i2', pa.int16()),
+        ('int16', pa.int16()),
+        ('i4', pa.int32()),
+        ('int32', pa.int32()),
+        ('i8', pa.int64()),
+        ('int64', pa.int64()),
+        ('u1', pa.uint8()),
+        ('uint8', pa.uint8()),
+        ('u2', pa.uint16()),
+        ('uint16', pa.uint16()),
+        ('u4', pa.uint32()),
+        ('uint32', pa.uint32()),
+        ('u8', pa.uint64()),
+        ('uint64', pa.uint64()),
+        ('f4', pa.float32()),
+        ('float32', pa.float32()),
+        ('f8', pa.float64()),
+        ('float64', pa.float64()),
+        ('date32', pa.date32()),
+        ('date64', pa.date64()),
+        ('string', pa.string()),
+        ('str', pa.string()),
+        ('binary', pa.binary()),
+        ('time32[s]', pa.time32('s')),
+        ('time32[ms]', pa.time32('ms')),
+        ('time64[us]', pa.time64('us')),
+        ('time64[ns]', pa.time64('ns')),
+        ('timestamp[s]', pa.timestamp('s')),
+        ('timestamp[ms]', pa.timestamp('ms')),
+        ('timestamp[us]', pa.timestamp('us')),
+        ('timestamp[ns]', pa.timestamp('ns')),
+    ]
+
+    for val, expected in cases:
+        assert pa.type_for_alias(val) == expected
 
 
 def test_type_string():
@@ -254,3 +306,48 @@ one: dictionary<values=string, indices=int16, ordered=0>
 two: int32""")
 
     assert repr(sch) == expected
+
+
+def test_type_schema_pickling():
+    cases = [
+        pa.int8(),
+        pa.string(),
+        pa.binary(),
+        pa.binary(10),
+        pa.list_(pa.string()),
+        pa.struct([
+            pa.field('a', 'int8'),
+            pa.field('b', 'string')
+        ]),
+        pa.union([
+            pa.field('a', pa.int8()),
+            pa.field('b', pa.int16())
+        ], pa.lib.UnionMode_SPARSE),
+        pa.union([
+            pa.field('a', pa.int8()),
+            pa.field('b', pa.int16())
+        ], pa.lib.UnionMode_DENSE),
+        pa.time32('s'),
+        pa.time64('us'),
+        pa.date32(),
+        pa.date64(),
+        pa.timestamp('ms'),
+        pa.timestamp('ns'),
+        pa.decimal128(12, 2),
+        pa.field('a', 'string', metadata={b'foo': b'bar'})
+    ]
+
+    for val in cases:
+        roundtripped = pickle.loads(pickle.dumps(val))
+        assert val == roundtripped
+
+    fields = []
+    for i, f in enumerate(cases):
+        if isinstance(f, pa.Field):
+            fields.append(f)
+        else:
+            fields.append(pa.field('_f{}'.format(i), f))
+
+    schema = pa.schema(fields, metadata={b'foo': b'bar'})
+    roundtripped = pickle.loads(pickle.dumps(schema))
+    assert schema == roundtripped

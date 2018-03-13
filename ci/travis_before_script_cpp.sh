@@ -38,8 +38,10 @@ if [ "$ARROW_TRAVIS_USE_TOOLCHAIN" == "1" ]; then
         rapidjson \
         flatbuffers \
         gflags \
+        gtest \
         lz4-c \
         snappy \
+        ccache \
         zstd \
         brotli \
         zlib \
@@ -47,13 +49,12 @@ if [ "$ARROW_TRAVIS_USE_TOOLCHAIN" == "1" ]; then
         curl \
         thrift-cpp \
         ninja
+
+  # HACK(wesm): We started experiencing OpenSSL failures when Miniconda was
+  # updated sometime on October 2 or October 3
+  conda update -y -p $CPP_TOOLCHAIN ca-certificates -c defaults
 fi
 
-if [ $TRAVIS_OS_NAME == "osx" ]; then
-  brew update > /dev/null
-  brew install jemalloc
-  brew install ccache
-fi
 
 mkdir $ARROW_CPP_BUILD_DIR
 pushd $ARROW_CPP_BUILD_DIR
@@ -90,12 +91,14 @@ fi
 if [ $TRAVIS_OS_NAME == "linux" ]; then
     cmake $CMAKE_COMMON_FLAGS \
           $CMAKE_LINUX_FLAGS \
-          -DARROW_CXXFLAGS="-Wconversion -Wno-sign-conversion -Werror" \
+          -DCMAKE_BUILD_TYPE=$ARROW_BUILD_TYPE \
+          -DBUILD_WARNING_LEVEL=$ARROW_BUILD_WARNING_LEVEL \
           $ARROW_CPP_DIR
 else
     cmake $CMAKE_COMMON_FLAGS \
           $CMAKE_OSX_FLAGS \
-          -DARROW_CXXFLAGS=-Werror \
+          -DCMAKE_BUILD_TYPE=$ARROW_BUILD_TYPE \
+          -DBUILD_WARNING_LEVEL=$ARROW_BUILD_WARNING_LEVEL \
           $ARROW_CPP_DIR
 fi
 

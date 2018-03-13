@@ -35,14 +35,15 @@ from pyarrow.lib import (null, bool_,
                          uint8, uint16, uint32, uint64,
                          time32, time64, timestamp, date32, date64,
                          float16, float32, float64,
-                         binary, string, decimal,
-                         list_, struct, dictionary, field,
+                         binary, string, decimal128,
+                         list_, struct, union, dictionary, field,
+                         type_for_alias,
                          DataType, NAType,
                          Field,
                          Schema,
                          schema,
                          Array, Tensor,
-                         array,
+                         array, chunked_array, column,
                          from_numpy_dtype,
                          NullArray,
                          NumericArray, IntegerArray, FloatingPointArray,
@@ -51,13 +52,13 @@ from pyarrow.lib import (null, bool_,
                          Int16Array, UInt16Array,
                          Int32Array, UInt32Array,
                          Int64Array, UInt64Array,
-                         ListArray,
+                         ListArray, UnionArray,
                          BinaryArray, StringArray,
                          FixedSizeBinaryArray,
                          DictionaryArray,
                          Date32Array, Date64Array,
                          TimestampArray, Time32Array, Time64Array,
-                         DecimalArray, StructArray,
+                         Decimal128Array, StructArray,
                          ArrayValue, Scalar, NA,
                          BooleanValue,
                          Int8Value, Int16Value, Int32Value, Int64Value,
@@ -65,20 +66,25 @@ from pyarrow.lib import (null, bool_,
                          FloatValue, DoubleValue, ListValue,
                          BinaryValue, StringValue, FixedSizeBinaryValue,
                          DecimalValue,
-                         Date32Value, Date64Value, TimestampValue,
-                         TimestampType)
+                         Date32Value, Date64Value, TimestampValue)
 
-from pyarrow.lib import (HdfsFile, NativeFile, PythonFile,
-                         FixedSizeBufferWriter,
-                         Buffer, BufferReader, BufferOutputStream,
-                         OSFile, MemoryMappedFile, memory_map,
-                         allocate_buffer, frombuffer,
-                         memory_map, create_memory_map,
-                         have_libhdfs, have_libhdfs3, MockOutputStream)
+# ARROW-1683: Remove after 0.8.0?
+from pyarrow.lib import TimestampType
+
+# Buffers, allocation
+from pyarrow.lib import (Buffer, ResizableBuffer, compress, decompress,
+                         allocate_buffer, frombuffer)
 
 from pyarrow.lib import (MemoryPool, total_allocated_bytes,
                          set_memory_pool, default_memory_pool,
                          log_memory_allocations)
+
+from pyarrow.lib import (HdfsFile, NativeFile, PythonFile,
+                         FixedSizeBufferWriter,
+                         BufferReader, BufferOutputStream,
+                         OSFile, MemoryMappedFile, memory_map,
+                         create_memory_map, have_libhdfs, have_libhdfs3,
+                         MockOutputStream)
 
 from pyarrow.lib import (ChunkedArray, Column, RecordBatch, Table,
                          concat_tables)
@@ -95,6 +101,7 @@ from pyarrow.lib import (ArrowException,
 
 # Serialization
 from pyarrow.lib import (deserialize_from, deserialize,
+                         deserialize_components,
                          serialize, serialize_to, read_serialized,
                          SerializedPyObject, SerializationContext,
                          SerializationCallbackError,
@@ -117,6 +124,12 @@ from pyarrow.ipc import (Message, MessageReader,
 
 localfs = LocalFileSystem.get_instance()
 
+from pyarrow.serialization import (_default_serialization_context,
+                                   pandas_serialization_context,
+                                   register_default_serialization_handlers)
+
+import pyarrow.types as types
+
 # Entry point for starting the plasma store
 
 def _plasma_store_entry_point():
@@ -138,13 +151,16 @@ def _plasma_store_entry_point():
 # ----------------------------------------------------------------------
 # Deprecations
 
-from pyarrow.util import _deprecate_class
+from pyarrow.util import _deprecate_class  # noqa
 
-FixedSizeBufferOutputStream = (
-    _deprecate_class('FixedSizeBufferOutputStream',
-                     'FixedSizeBufferWriter',
-                     FixedSizeBufferWriter, '0.7.0'))
+# ----------------------------------------------------------------------
+# Returning absolute path to the pyarrow include directory (if bundled, e.g. in
+# wheels)
 
-# Backwards compatibility with pyarrow < 0.6.0
-HdfsClient = _deprecate_class('HdfsClient', 'pyarrow.hdfs.connect',
-                              hdfs.connect, '0.6.0')
+def get_include():
+    """
+    Return absolute path to directory containing Arrow C++ include
+    headers. Similar to numpy.get_include
+    """
+    import os
+    return os.path.join(os.path.dirname(__file__), 'include')

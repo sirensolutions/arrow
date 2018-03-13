@@ -23,10 +23,14 @@ kramdown:
   input: GFM
   syntax_highlighter: rouge
 
+include:
+  - _static
+
 exclude:
   - Gemfile
   - Gemfile.lock
   - _docs/format/*
+  - ruby
   - asf-site
   - scripts
   - README.md

@@ -278,6 +278,39 @@ Status PlasmaClient::Get(const ObjectID* object_ids, int64_t num_objects,
   return Status::OK();
 }
 
+Status PlasmaClient::UnmapObject(const ObjectID& object_id) {
+  auto object_entry = objects_in_use_.find(object_id);
+  ARROW_CHECK(object_entry != objects_in_use_.end());
+  ARROW_CHECK(object_entry->second->count == 0);
+
+  // Decrement the count of the number of objects in this memory-mapped file
+  // that the client is using. The corresponding increment should have
+  // happened in plasma_get.
+  int fd = object_entry->second->object.handle.store_fd;
+  auto entry = mmap_table_.find(fd);
+  ARROW_CHECK(entry != mmap_table_.end());
+  ARROW_CHECK(entry->second.count >= 1);
+  if (entry->second.count == 1) {
+    // If no other objects are being used, then unmap the file.
+    int err = munmap(entry->second.pointer, entry->second.length);
+    if (err == -1) {
+      return Status::IOError("Error during munmap");
+    }
+    // Remove the corresponding entry from the hash table.
+    mmap_table_.erase(fd);
+  } else {
+    // If there are other objects being used, decrement the reference count.
+    entry->second.count -= 1;
+  }
+  // Update the in_use_object_bytes_.
+  in_use_object_bytes_ -= (object_entry->second->object.data_size +
+                           object_entry->second->object.metadata_size);
+  DCHECK_GE(in_use_object_bytes_, 0);
+  // Remove the entry from the hash table of objects currently in use.
+  objects_in_use_.erase(object_id);
+  return Status::OK();
+}
+
 /// This is a helper method for implementing plasma_release. We maintain a
 /// buffer
 /// of release calls and only perform them once the buffer becomes full (as
@@ -286,7 +319,6 @@ Status PlasmaClient::Get(const ObjectID* object_ids, int64_t num_objects,
 /// calls will not do anything. The client will only send a message to the store
 /// releasing the object when the client is truly done with the object.
 ///
-/// @param conn The plasma connection.
 /// @param object_id The object ID to attempt to release.
 Status PlasmaClient::PerformRelease(const ObjectID& object_id) {
   // Decrement the count of the number of instances of this object that are
@@ -298,28 +330,9 @@ Status PlasmaClient::PerformRelease(const ObjectID& object_id) {
   ARROW_CHECK(object_entry->second->count >= 0);
   // Check if the client is no longer using this object.
   if (object_entry->second->count == 0) {
-    // Decrement the count of the number of objects in this memory-mapped file
-    // that the client is using. The corresponding increment should have
-    // happened in plasma_get.
-    int fd = object_entry->second->object.handle.store_fd;
-    auto entry = mmap_table_.find(fd);
-    ARROW_CHECK(entry != mmap_table_.end());
-    entry->second.count -= 1;
-    ARROW_CHECK(entry->second.count >= 0);
-    // If none are being used then unmap the file.
-    if (entry->second.count == 0) {
-      munmap(entry->second.pointer, entry->second.length);
-      // Remove the corresponding entry from the hash table.
-      mmap_table_.erase(fd);
-    }
     // Tell the store that the client no longer needs the object.
+    RETURN_NOT_OK(UnmapObject(object_id));
     RETURN_NOT_OK(SendReleaseRequest(store_conn_, object_id));
-    // Update the in_use_object_bytes_.
-    in_use_object_bytes_ -= (object_entry->second->object.data_size +
-                             object_entry->second->object.metadata_size);
-    DCHECK_GE(in_use_object_bytes_, 0);
-    // Remove the entry from the hash table of objects currently in use.
-    objects_in_use_.erase(object_id);
   }
   return Status::OK();
 }
@@ -345,6 +358,20 @@ Status PlasmaClient::Release(const ObjectID& object_id) {
   return Status::OK();
 }
 
+Status PlasmaClient::FlushReleaseHistory() {
+  // If the client is already disconnected, ignore the flush.
+  if (store_conn_ < 0) {
+    return Status::OK();
+  }
+  while (release_history_.size() > 0) {
+    // Perform a release for the object ID for the first pending release.
+    RETURN_NOT_OK(PerformRelease(release_history_.back()));
+    // Remove the last entry from the release history.
+    release_history_.pop_back();
+  }
+  return Status::OK();
+}
+
 // This method is used to query whether the plasma store contains an object.
 Status PlasmaClient::Contains(const ObjectID& object_id, bool* has_object) {
   // Check if we already have a reference to the object.
@@ -357,6 +384,7 @@ Status PlasmaClient::Contains(const ObjectID& object_id, bool* has_object) {
     std::vector<uint8_t> buffer;
     RETURN_NOT_OK(PlasmaReceive(store_conn_, MessageType_PlasmaContainsReply, &buffer));
     ObjectID object_id2;
+    DCHECK_GT(buffer.size(), 0);
     RETURN_NOT_OK(
         ReadContainsReply(buffer.data(), buffer.size(), &object_id2, has_object));
   }
@@ -401,7 +429,8 @@ static inline bool compute_object_hash_parallel(XXH64_state_t* hash_state,
     }
   }
 
-  XXH64_update(hash_state, (unsigned char*)threadhash, sizeof(threadhash));
+  XXH64_update(hash_state, reinterpret_cast<unsigned char*>(threadhash),
+               sizeof(threadhash));
   return true;
 }
 
@@ -409,12 +438,14 @@ static uint64_t compute_object_hash(const ObjectBuffer& obj_buffer) {
   XXH64_state_t hash_state;
   XXH64_reset(&hash_state, XXH64_DEFAULT_SEED);
   if (obj_buffer.data_size >= kBytesInMB) {
-    compute_object_hash_parallel(&hash_state, (unsigned char*)obj_buffer.data,
+    compute_object_hash_parallel(&hash_state,
+                                 reinterpret_cast<unsigned char*>(obj_buffer.data),
                                  obj_buffer.data_size);
   } else {
-    XXH64_update(&hash_state, (unsigned char*)obj_buffer.data, obj_buffer.data_size);
+    XXH64_update(&hash_state, reinterpret_cast<unsigned char*>(obj_buffer.data),
+                 obj_buffer.data_size);
   }
-  XXH64_update(&hash_state, (unsigned char*)obj_buffer.metadata,
+  XXH64_update(&hash_state, reinterpret_cast<unsigned char*>(obj_buffer.metadata),
                obj_buffer.metadata_size);
   return XXH64_digest(&hash_state);
 }
@@ -438,6 +469,35 @@ Status PlasmaClient::Seal(const ObjectID& object_id) {
   // happened in plasma_create and was used to ensure that the object was not
   // released before the call to PlasmaClient::Seal.
   return Release(object_id);
+}
+
+Status PlasmaClient::Abort(const ObjectID& object_id) {
+  auto object_entry = objects_in_use_.find(object_id);
+  ARROW_CHECK(object_entry != objects_in_use_.end())
+      << "Plasma client called abort on an object without a reference to it";
+  ARROW_CHECK(!object_entry->second->is_sealed)
+      << "Plasma client called abort on a sealed object";
+
+  // Flush the release history.
+  RETURN_NOT_OK(FlushReleaseHistory());
+  // Make sure that the Plasma client only has one reference to the object. If
+  // it has more, then the client needs to release the buffer before calling
+  // abort.
+  if (object_entry->second->count > 1) {
+    return Status::Invalid("Plasma client cannot have a reference to the buffer.");
+  }
+
+  // Send the abort request.
+  RETURN_NOT_OK(SendAbortRequest(store_conn_, object_id));
+  // Decrease the reference count to zero, then remove the object.
+  object_entry->second->count--;
+  RETURN_NOT_OK(UnmapObject(object_id));
+
+  std::vector<uint8_t> buffer;
+  ObjectID id;
+  int64_t type;
+  RETURN_NOT_OK(ReadMessage(store_conn_, &type, &buffer));
+  return ReadAbortReply(buffer.data(), buffer.size(), &id);
 }
 
 Status PlasmaClient::Delete(const ObjectID& object_id) {
@@ -548,8 +608,6 @@ Status PlasmaClient::Disconnect() {
   return Status::OK();
 }
 
-#define h_addr h_addr_list[0]
-
 Status PlasmaClient::Transfer(const char* address, int port, const ObjectID& object_id) {
   return SendDataRequest(manager_conn_, object_id, address, port);
 }
@@ -559,7 +617,7 @@ Status PlasmaClient::Fetch(int num_object_ids, const ObjectID* object_ids) {
   return SendFetchRequest(manager_conn_, object_ids, num_object_ids);
 }
 
-int PlasmaClient::get_manager_fd() { return manager_conn_; }
+int PlasmaClient::get_manager_fd() const { return manager_conn_; }
 
 Status PlasmaClient::Info(const ObjectID& object_id, int* object_status) {
   ARROW_CHECK(manager_conn_ >= 0);

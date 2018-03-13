@@ -29,7 +29,11 @@ Makefile.in
 /doc/reference/gtk-doc.make
 /doc/reference/*.stamp
 /doc/reference/html/
-/doc/reference/xml/
+/doc/reference/xml/*
+!/doc/reference/xml/Makefile.am
+!/doc/reference/xml/meson.build
+!/doc/reference/xml/gtkdocentities.ent.in
+/doc/reference/tmpl/
 /libtool
 /m4/
 /stamp-h1
@@ -37,6 +41,7 @@ Makefile.in
 /arrow-glib/enums.h
 /arrow-glib/stamp-*
 /arrow-glib/*.pc
+/arrow-gpu-glib/*.pc
 /example/build
 /example/read-batch
 /example/read-stream

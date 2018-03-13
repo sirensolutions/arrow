@@ -33,6 +33,7 @@
 #include "arrow/ipc/Message_generated.h"
 #include "arrow/ipc/Tensor_generated.h"
 #include "arrow/ipc/dictionary.h"
+#include "arrow/ipc/message.h"
 #include "arrow/ipc/util.h"
 #include "arrow/status.h"
 #include "arrow/tensor.h"
@@ -46,15 +47,35 @@ namespace arrow {
 namespace flatbuf = org::apache::arrow::flatbuf;
 
 namespace ipc {
+namespace internal {
 
 using FBB = flatbuffers::FlatBufferBuilder;
 using DictionaryOffset = flatbuffers::Offset<flatbuf::DictionaryEncoding>;
 using FieldOffset = flatbuffers::Offset<flatbuf::Field>;
 using KeyValueOffset = flatbuffers::Offset<flatbuf::KeyValue>;
 using RecordBatchOffset = flatbuffers::Offset<flatbuf::RecordBatch>;
-using VectorLayoutOffset = flatbuffers::Offset<arrow::flatbuf::VectorLayout>;
 using Offset = flatbuffers::Offset<void>;
 using FBString = flatbuffers::Offset<flatbuffers::String>;
+
+MetadataVersion GetMetadataVersion(flatbuf::MetadataVersion version) {
+  switch (version) {
+    case flatbuf::MetadataVersion_V1:
+      // Arrow 0.1
+      return MetadataVersion::V1;
+    case flatbuf::MetadataVersion_V2:
+      // Arrow 0.2
+      return MetadataVersion::V2;
+    case flatbuf::MetadataVersion_V3:
+      // Arrow 0.3 to 0.7.1
+      return MetadataVersion::V4;
+    case flatbuf::MetadataVersion_V4:
+      // Arrow >= 0.8
+      return MetadataVersion::V4;
+    // Add cases as other versions become available
+    default:
+      return MetadataVersion::V4;
+  }
+}
 
 static Status IntFromFlatbuffer(const flatbuf::Int* int_data,
                                 std::shared_ptr<DataType>* out) {
@@ -141,8 +162,9 @@ static Status StructToFlatbuffer(FBB& fbb, const DataType& type,
 static Status UnionFromFlatbuffer(const flatbuf::Union* union_data,
                                   const std::vector<std::shared_ptr<Field>>& children,
                                   std::shared_ptr<DataType>* out) {
-  UnionMode mode = union_data->mode() == flatbuf::UnionMode_Sparse ? UnionMode::SPARSE
-                                                                   : UnionMode::DENSE;
+  UnionMode::type mode =
+      (union_data->mode() == flatbuf::UnionMode_Sparse ? UnionMode::SPARSE
+                                                       : UnionMode::DENSE);
 
   std::vector<uint8_t> type_codes;
 
@@ -229,6 +251,9 @@ static Status TypeFromFlatbuffer(flatbuf::Type type, const void* type_data,
   switch (type) {
     case flatbuf::Type_NONE:
       return Status::Invalid("Type metadata cannot be none");
+    case flatbuf::Type_Null:
+      *out = null();
+      return Status::OK();
     case flatbuf::Type_Int:
       return IntFromFlatbuffer(static_cast<const flatbuf::Int*>(type_data), out);
     case flatbuf::Type_FloatingPoint:
@@ -315,34 +340,8 @@ static Status TypeFromFlatbuffer(flatbuf::Type type, const void* type_data,
 // TODO(wesm): Convert this to visitor pattern
 static Status TypeToFlatbuffer(FBB& fbb, const DataType& type,
                                std::vector<FieldOffset>* children,
-                               std::vector<VectorLayoutOffset>* layout,
                                flatbuf::Type* out_type, DictionaryMemo* dictionary_memo,
                                Offset* offset) {
-  std::vector<BufferDescr> buffer_layout = type.GetBufferLayout();
-  for (const BufferDescr& descr : buffer_layout) {
-    flatbuf::VectorType vector_type;
-    switch (descr.type()) {
-      case BufferType::OFFSET:
-        vector_type = flatbuf::VectorType_OFFSET;
-        break;
-      case BufferType::DATA:
-        vector_type = flatbuf::VectorType_DATA;
-        break;
-      case BufferType::VALIDITY:
-        vector_type = flatbuf::VectorType_VALIDITY;
-        break;
-      case BufferType::TYPE:
-        vector_type = flatbuf::VectorType_TYPE;
-        break;
-      default:
-        vector_type = flatbuf::VectorType_DATA;
-        break;
-    }
-    auto offset = flatbuf::CreateVectorLayout(
-        fbb, static_cast<int16_t>(descr.bit_width()), vector_type);
-    layout->push_back(offset);
-  }
-
   const DataType* value_type = &type;
 
   if (type.id() == Type::DICTIONARY) {
@@ -353,6 +352,10 @@ static Status TypeToFlatbuffer(FBB& fbb, const DataType& type,
   }
 
   switch (value_type->id()) {
+    case Type::NA:
+      *out_type = flatbuf::Type_Null;
+      *offset = flatbuf::CreateNull(fbb).Union();
+      break;
     case Type::BOOL:
       *out_type = flatbuf::Type_Bool;
       *offset = flatbuf::CreateBool(fbb).Union();
@@ -373,6 +376,10 @@ static Status TypeToFlatbuffer(FBB& fbb, const DataType& type,
       INT_TO_FB_CASE(64, false);
     case Type::INT64:
       INT_TO_FB_CASE(64, true);
+    case Type::HALF_FLOAT:
+      *out_type = flatbuf::Type_FloatingPoint;
+      *offset = FloatToFlatbuffer(fbb, flatbuf::Precision_HALF);
+      break;
     case Type::FLOAT:
       *out_type = flatbuf::Type_FloatingPoint;
       *offset = FloatToFlatbuffer(fbb, flatbuf::Precision_SINGLE);
@@ -424,7 +431,7 @@ static Status TypeToFlatbuffer(FBB& fbb, const DataType& type,
       *offset = flatbuf::CreateTimestamp(fbb, fb_unit, fb_timezone).Union();
     } break;
     case Type::DECIMAL: {
-      const auto& dec_type = static_cast<const DecimalType&>(*value_type);
+      const auto& dec_type = static_cast<const Decimal128Type&>(*value_type);
       *out_type = flatbuf::Type_Decimal;
       *offset =
           flatbuf::CreateDecimal(fbb, dec_type.precision(), dec_type.scale()).Union();
@@ -509,14 +516,11 @@ static Status FieldToFlatbuffer(FBB& fbb, const Field& field,
 
   flatbuf::Type type_enum;
   Offset type_offset;
-  Offset type_layout;
   std::vector<FieldOffset> children;
-  std::vector<VectorLayoutOffset> layout;
 
-  RETURN_NOT_OK(TypeToFlatbuffer(fbb, *field.type(), &children, &layout, &type_enum,
+  RETURN_NOT_OK(TypeToFlatbuffer(fbb, *field.type(), &children, &type_enum,
                                  dictionary_memo, &type_offset));
   auto fb_children = fbb.CreateVector(children);
-  auto fb_layout = fbb.CreateVector(layout);
 
   DictionaryOffset dictionary = 0;
   if (field.type()->id() == Type::DICTIONARY) {
@@ -526,7 +530,7 @@ static Status FieldToFlatbuffer(FBB& fbb, const Field& field,
 
   // TODO: produce the list of VectorTypes
   *offset = flatbuf::CreateField(fbb, fb_name, field.nullable(), type_enum, type_offset,
-                                 dictionary, fb_children, fb_layout);
+                                 dictionary, fb_children);
 
   return Status::OK();
 }
@@ -688,7 +692,7 @@ static Status WriteBuffers(FBB& fbb, const std::vector<BufferMetadata>& buffers,
 
   for (size_t i = 0; i < buffers.size(); ++i) {
     const BufferMetadata& buffer = buffers[i];
-    fb_buffers.emplace_back(buffer.page, buffer.offset, buffer.length);
+    fb_buffers.emplace_back(buffer.offset, buffer.length);
   }
   *out = fbb.CreateVectorOfStructs(fb_buffers);
   return Status::OK();
@@ -739,7 +743,7 @@ Status WriteTensorMessage(const Tensor& tensor, int64_t buffer_start_offset,
   auto fb_shape = fbb.CreateVector(dims);
   auto fb_strides = fbb.CreateVector(tensor.strides());
   int64_t body_length = tensor.data()->size();
-  flatbuf::Buffer buffer(-1, buffer_start_offset, body_length);
+  flatbuf::Buffer buffer(buffer_start_offset, body_length);
 
   TensorOffset fb_tensor =
       flatbuf::CreateTensor(fbb, fb_type_type, fb_type, fb_shape, fb_strides, &buffer);
@@ -911,8 +915,7 @@ Status WriteMessage(const Buffer& message, io::OutputStream* file,
 
   // Write the flatbuffer size prefix including padding
   int32_t flatbuffer_size = padded_message_length - 4;
-  RETURN_NOT_OK(
-      file->Write(reinterpret_cast<const uint8_t*>(&flatbuffer_size), sizeof(int32_t)));
+  RETURN_NOT_OK(file->Write(&flatbuffer_size, sizeof(int32_t)));
 
   // Write the flatbuffer
   RETURN_NOT_OK(file->Write(message.data(), message.size()));
@@ -926,5 +929,6 @@ Status WriteMessage(const Buffer& message, io::OutputStream* file,
   return Status::OK();
 }
 
+}  // namespace internal
 }  // namespace ipc
 }  // namespace arrow

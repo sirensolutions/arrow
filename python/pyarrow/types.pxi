@@ -69,16 +69,52 @@ cdef class DataType:
             )
         return frombytes(self.type.ToString())
 
+    def __hash__(self):
+        return hash(str(self))
+
+    def __reduce__(self):
+        return self.__class__, (), self.__getstate__()
+
+    def __getstate__(self):
+        return str(self),
+
+    def __setstate__(self, state):
+        cdef DataType reconstituted = type_for_alias(state[0])
+        self.init(reconstituted.sp_type)
+
     def __repr__(self):
         return '{0.__class__.__name__}({0})'.format(self)
 
-    def __richcmp__(DataType self, DataType other, int op):
+    def __richcmp__(DataType self, object other, int op):
         if op == cp.Py_EQ:
-            return self.type.Equals(deref(other.type))
+            return self.equals(other)
         elif op == cp.Py_NE:
-            return not self.type.Equals(deref(other.type))
+            return not self.equals(other)
         else:
             raise TypeError('Invalid comparison')
+
+    def equals(self, other):
+        """
+        Return true if type is equivalent to passed value
+
+        Parameters
+        ----------
+        other : DataType or string convertible to DataType
+
+        Returns
+        -------
+        is_equal : boolean
+        """
+        cdef DataType other_type
+
+        if not isinstance(other, DataType):
+            if not isinstance(other, six.string_types):
+                raise TypeError(other)
+            other_type = type_for_alias(other)
+        else:
+            other_type = other
+
+        return self.type.Equals(deref(other_type.type))
 
     def to_pandas_dtype(self):
         """
@@ -109,11 +145,76 @@ cdef class ListType(DataType):
         DataType.init(self, type)
         self.list_type = <const CListType*> type.get()
 
+    def __getstate__(self):
+        cdef CField* field = self.list_type.value_field().get()
+        name = field.name()
+        return name, self.value_type
+
+    def __setstate__(self, state):
+        cdef DataType reconstituted = list_(field(state[0], state[1]))
+        self.init(reconstituted.sp_type)
+
     property value_type:
 
         def __get__(self):
             return pyarrow_wrap_data_type(self.list_type.value_type())
 
+
+cdef class StructType(DataType):
+
+    cdef void init(self, const shared_ptr[CDataType]& type):
+        DataType.init(self, type)
+
+    def __getitem__(self, i):
+        if i < 0 or i >= self.num_children:
+            raise IndexError(i)
+
+        return pyarrow_wrap_field(self.type.child(i))
+
+    property num_children:
+
+        def __get__(self):
+            return self.type.num_children()
+
+    def __getstate__(self):
+        cdef CStructType* type = <CStructType*> self.sp_type.get()
+        return [self[i] for i in range(self.num_children)]
+
+    def __setstate__(self, state):
+        cdef DataType reconstituted = struct(state)
+        self.init(reconstituted.sp_type)
+
+
+cdef class UnionType(DataType):
+
+    cdef void init(self, const shared_ptr[CDataType]& type):
+        DataType.init(self, type)
+        self.child_types = [
+            pyarrow_wrap_data_type(type.get().child(i).get().type())
+            for i in range(self.num_children)]
+
+    property num_children:
+
+        def __get__(self):
+            return self.type.num_children()
+
+    property mode:
+
+        def __get__(self):
+            cdef CUnionType* type = <CUnionType*> self.sp_type.get()
+            return type.mode()
+
+    def __getitem__(self, i):
+        return self.child_types[i]
+
+    def __getstate__(self):
+        children = [pyarrow_wrap_field(self.type.child(i))
+                    for i in range(self.num_children)]
+        return children, self.mode
+
+    def __setstate__(self, state):
+        cdef DataType reconstituted = union(*state)
+        self.init(reconstituted.sp_type)
 
 cdef class TimestampType(DataType):
 
@@ -176,27 +277,41 @@ cdef class FixedSizeBinaryType(DataType):
         self.fixed_size_binary_type = (
             <const CFixedSizeBinaryType*> type.get())
 
+    def __getstate__(self):
+        return self.byte_width
+
+    def __setstate__(self, state):
+        cdef DataType reconstituted = binary(state)
+        self.init(reconstituted.sp_type)
+
     property byte_width:
 
         def __get__(self):
             return self.fixed_size_binary_type.byte_width()
 
 
-cdef class DecimalType(FixedSizeBinaryType):
+cdef class Decimal128Type(FixedSizeBinaryType):
 
     cdef void init(self, const shared_ptr[CDataType]& type):
         DataType.init(self, type)
-        self.decimal_type = <const CDecimalType*> type.get()
+        self.decimal128_type = <const CDecimal128Type*> type.get()
+
+    def __getstate__(self):
+        return (self.precision, self.scale)
+
+    def __setstate__(self, state):
+        cdef DataType reconstituted = decimal128(*state)
+        self.init(reconstituted.sp_type)
 
     property precision:
 
         def __get__(self):
-            return self.decimal_type.precision()
+            return self.decimal128_type.precision()
 
     property scale:
 
         def __get__(self):
-            return self.decimal_type.scale()
+            return self.decimal128_type.scale()
 
 
 cdef class Field:
@@ -221,6 +336,24 @@ cdef class Field:
         Test if this field is equal to the other
         """
         return self.field.Equals(deref(other.field))
+
+    def __richcmp__(Field self, Field other, int op):
+        if op == cp.Py_EQ:
+            return self.equals(other)
+        elif op == cp.Py_NE:
+            return not self.equals(other)
+        else:
+            raise TypeError('Invalid comparison')
+
+    def __reduce__(self):
+        return Field, (), self.__getstate__()
+
+    def __getstate__(self):
+        return (self.name, self.type, self.metadata)
+
+    def __setstate__(self, state):
+        cdef Field reconstituted = field(state[0], state[1], metadata=state[2])
+        self.init(reconstituted.sp_field)
 
     def __str__(self):
         self._check_null()
@@ -334,6 +467,16 @@ cdef class Schema:
         self.schema = schema.get()
         self.sp_schema = schema
 
+    def __reduce__(self):
+        return Schema, (), self.__getstate__()
+
+    def __getstate__(self):
+        return ([self[i] for i in range(len(self))], self.metadata)
+
+    def __setstate__(self, state):
+        cdef Schema reconstituted = schema(state[0], metadata=state[1])
+        self.init_schema(reconstituted.sp_schema)
+
     property names:
 
         def __get__(self):
@@ -351,6 +494,14 @@ cdef class Schema:
             cdef shared_ptr[const CKeyValueMetadata] metadata = (
                 self.schema.metadata())
             return box_metadata(metadata.get())
+
+    def __richcmp__(self, other, int op):
+        if op == cp.Py_EQ:
+            return self.equals(other)
+        elif op == cp.Py_NE:
+            return not self.equals(other)
+        else:
+            raise TypeError('Invalid comparison')
 
     def equals(self, other):
         """
@@ -498,7 +649,7 @@ cdef int convert_metadata(dict metadata,
     return 0
 
 
-def field(name, DataType type, bint nullable=True, dict metadata=None):
+def field(name, type, bint nullable=True, dict metadata=None):
     """
     Create a pyarrow.Field instance
 
@@ -517,15 +668,26 @@ def field(name, DataType type, bint nullable=True, dict metadata=None):
     cdef:
         shared_ptr[CKeyValueMetadata] c_meta
         Field result = Field()
+        DataType _type
 
     if metadata is not None:
         convert_metadata(metadata, &c_meta)
 
-    result.sp_field.reset(new CField(tobytes(name), type.sp_type,
+    _type = _as_type(type)
+
+    result.sp_field.reset(new CField(tobytes(name), _type.sp_type,
                                      nullable == 1, c_meta))
     result.field = result.sp_field.get()
-    result.type = type
+    result.type = _type
     return result
+
+
+cdef _as_type(type):
+    if isinstance(type, DataType):
+        return type
+    if not isinstance(type, six.string_types):
+        raise TypeError(type)
+    return type_for_alias(type)
 
 
 cdef set PRIMITIVE_TYPES = set([
@@ -791,9 +953,9 @@ def float64():
     return primitive_type(_Type_DOUBLE)
 
 
-cpdef DataType decimal(int precision, int scale=0):
+cpdef DataType decimal128(int precision, int scale=0):
     """
-    Create decimal type with precision and scale
+    Create decimal type with precision and scale and 128bit width
 
     Parameters
     ----------
@@ -802,10 +964,10 @@ cpdef DataType decimal(int precision, int scale=0):
 
     Returns
     -------
-    decimal_type : DecimalType
+    decimal_type : Decimal128Type
     """
     cdef shared_ptr[CDataType] decimal_type
-    decimal_type.reset(new CDecimalType(precision, scale))
+    decimal_type.reset(new CDecimal128Type(precision, scale))
     return pyarrow_wrap_data_type(decimal_type)
 
 
@@ -922,19 +1084,108 @@ def struct(fields):
     return pyarrow_wrap_data_type(struct_type)
 
 
-def schema(fields):
+def union(children_fields, mode):
+    """
+    Create UnionType from children fields.
+    """
+    cdef:
+        Field child_field
+        vector[shared_ptr[CField]] c_fields
+        vector[uint8_t] type_codes
+        shared_ptr[CDataType] union_type
+        int i
+
+    for i, child_field in enumerate(children_fields):
+        type_codes.push_back(i)
+        c_fields.push_back(child_field.sp_field)
+
+        if mode == UnionMode_SPARSE:
+            union_type.reset(new CUnionType(c_fields, type_codes,
+                                            _UnionMode_SPARSE))
+        else:
+            union_type.reset(new CUnionType(c_fields, type_codes,
+                                            _UnionMode_DENSE))
+
+    return pyarrow_wrap_data_type(union_type)
+
+
+cdef dict _type_aliases = {
+    'null': null,
+    'i1': int8,
+    'int8': int8,
+    'i2': int16,
+    'int16': int16,
+    'i4': int32,
+    'int32': int32,
+    'i8': int64,
+    'int64': int64,
+    'u1': uint8,
+    'uint8': uint8,
+    'u2': uint16,
+    'uint16': uint16,
+    'u4': uint32,
+    'uint32': uint32,
+    'u8': uint64,
+    'uint64': uint64,
+    'f4': float32,
+    'float32': float32,
+    'f8': float64,
+    'float64': float64,
+    'string': string,
+    'str': string,
+    'utf8': string,
+    'binary': binary,
+    'date32': date32,
+    'date64': date64,
+    'date32[day]': date32,
+    'date64[ms]': date64,
+    'time32[s]': time32('s'),
+    'time32[ms]': time32('ms'),
+    'time64[us]': time64('us'),
+    'time64[ns]': time64('ns'),
+    'timestamp[s]': timestamp('s'),
+    'timestamp[ms]': timestamp('ms'),
+    'timestamp[us]': timestamp('us'),
+    'timestamp[ns]': timestamp('ns'),
+}
+
+
+def type_for_alias(name):
+    """
+    Return DataType given a string alias if one exists
+
+    Returns
+    -------
+    type : DataType
+    """
+    name = name.lower()
+    try:
+        alias = _type_aliases[name]
+    except KeyError:
+        raise ValueError('No type alias for {0}'.format(name))
+
+    if isinstance(alias, DataType):
+        return alias
+    return alias()
+
+
+def schema(fields, dict metadata=None):
     """
     Construct pyarrow.Schema from collection of fields
 
     Parameters
     ----------
     field : list or iterable
+    metadata : dict, default None
+        Keys and values must be coercible to bytes
 
     Returns
     -------
     schema : pyarrow.Schema
     """
     cdef:
+        shared_ptr[CKeyValueMetadata] c_meta
+        shared_ptr[CSchema] c_schema
         Schema result
         Field field
         vector[shared_ptr[CField]] c_fields
@@ -942,8 +1193,12 @@ def schema(fields):
     for i, field in enumerate(fields):
         c_fields.push_back(field.sp_field)
 
+    if metadata is not None:
+        convert_metadata(metadata, &c_meta)
+
+    c_schema.reset(new CSchema(c_fields, c_meta))
     result = Schema()
-    result.init(c_fields)
+    result.init_schema(c_schema)
     return result
 
 

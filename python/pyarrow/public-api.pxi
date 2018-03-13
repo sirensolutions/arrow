@@ -43,6 +43,13 @@ cdef public api object pyarrow_wrap_buffer(const shared_ptr[CBuffer]& buf):
     return result
 
 
+cdef public api object pyarrow_wrap_resizable_buffer(
+        const shared_ptr[CResizableBuffer]& buf):
+    cdef ResizableBuffer result = ResizableBuffer()
+    result.init_rz(buf)
+    return result
+
+
 cdef public api bint pyarrow_is_data_type(object type_):
     return isinstance(type_, DataType)
 
@@ -69,12 +76,16 @@ cdef public api object pyarrow_wrap_data_type(
         out = DictionaryType()
     elif type.get().id() == _Type_LIST:
         out = ListType()
+    elif type.get().id() == _Type_STRUCT:
+        out = StructType()
+    elif type.get().id() == _Type_UNION:
+        out = UnionType()
     elif type.get().id() == _Type_TIMESTAMP:
         out = TimestampType()
     elif type.get().id() == _Type_FIXED_SIZE_BINARY:
         out = FixedSizeBinaryType()
     elif type.get().id() == _Type_DECIMAL:
-        out = DecimalType()
+        out = Decimal128Type()
     else:
         out = DataType()
 

@@ -23,8 +23,8 @@ import com.google.common.base.Preconditions;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.stream.ArrowStreamReader;
-import org.apache.arrow.vector.stream.ArrowStreamWriter;
+import org.apache.arrow.vector.ipc.ArrowStreamReader;
+import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,9 +95,9 @@ public class EchoServer {
     }
 
     public void run() throws IOException {
-      BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
       // Read the entire input stream and write it back
-      try (ArrowStreamReader reader = new ArrowStreamReader(socket.getInputStream(), allocator)) {
+      try (BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+           ArrowStreamReader reader = new ArrowStreamReader(socket.getInputStream(), allocator)) {
         VectorSchemaRoot root = reader.getVectorSchemaRoot();
         // load the first batch before instantiating the writer so that we have any dictionaries
         reader.loadNextBatch();

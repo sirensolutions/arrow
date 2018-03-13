@@ -25,29 +25,39 @@
 #include <utility>
 
 #include "arrow/type.h"
+#include "arrow/util/macros.h"
 #include "arrow/util/visibility.h"
 
 namespace arrow {
+
+class Decimal128;
 
 namespace py {
 
 class OwnedRef;
 
-ARROW_EXPORT std::shared_ptr<DataType> GetPrimitiveType(Type::type type);
+ARROW_EXPORT
+std::shared_ptr<DataType> GetPrimitiveType(Type::type type);
 
-Status ARROW_EXPORT ImportModule(const std::string& module_name, OwnedRef* ref);
-Status ARROW_EXPORT ImportFromModule(const OwnedRef& module,
-                                     const std::string& module_name, OwnedRef* ref);
+namespace internal {
 
-Status ARROW_EXPORT PythonDecimalToString(PyObject* python_decimal, std::string* out);
+Status ImportModule(const std::string& module_name, OwnedRef* ref);
+Status ImportFromModule(const OwnedRef& module, const std::string& module_name,
+                        OwnedRef* ref);
 
-Status ARROW_EXPORT InferDecimalPrecisionAndScale(PyObject* python_decimal,
-                                                  int* precision = nullptr,
-                                                  int* scale = nullptr);
+Status PythonDecimalToString(PyObject* python_decimal, std::string* out);
 
-Status ARROW_EXPORT DecimalFromString(PyObject* decimal_constructor,
-                                      const std::string& decimal_string, PyObject** out);
+Status InferDecimalPrecisionAndScale(PyObject* python_decimal,
+                                     int32_t* precision = NULLPTR,
+                                     int32_t* scale = NULLPTR);
 
+PyObject* DecimalFromString(PyObject* decimal_constructor,
+                            const std::string& decimal_string);
+Status DecimalFromPythonDecimal(PyObject* python_decimal, const DecimalType& arrow_type,
+                                Decimal128* out);
+bool IsPyInteger(PyObject* obj);
+
+}  // namespace internal
 }  // namespace py
 }  // namespace arrow
 

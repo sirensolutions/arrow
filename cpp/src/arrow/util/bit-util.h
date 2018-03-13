@@ -18,15 +18,33 @@
 #ifndef ARROW_UTIL_BIT_UTIL_H
 #define ARROW_UTIL_BIT_UTIL_H
 
-#if defined(__APPLE__)
+#ifdef _WIN32
+#define ARROW_LITTLE_ENDIAN 1
+#else
+#ifdef __APPLE__
 #include <machine/endian.h>
-#elif defined(_WIN32)
-#define __LITTLE_ENDIAN 1
 #else
 #include <endian.h>
 #endif
+#
+#ifndef __BYTE_ORDER__
+#error "__BYTE_ORDER__ not defined"
+#endif
+#
+#ifndef __ORDER_LITTLE_ENDIAN__
+#error "__ORDER_LITTLE_ENDIAN__ not defined"
+#endif
+#
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define ARROW_LITTLE_ENDIAN 1
+#else
+#define ARROW_LITTLE_ENDIAN 0
+#endif
+#endif
 
 #if defined(_MSC_VER)
+#include <intrin.h>
+#pragma intrinsic(_BitScanReverse)
 #define ARROW_BYTE_SWAP64 _byteswap_uint64
 #define ARROW_BYTE_SWAP32 _byteswap_ulong
 #else
@@ -40,6 +58,7 @@
 #include <vector>
 
 #include "arrow/util/macros.h"
+#include "arrow/util/type_traits.h"
 #include "arrow/util/visibility.h"
 
 #ifdef ARROW_USE_SSE
@@ -48,25 +67,6 @@
 #endif
 
 namespace arrow {
-
-#ifndef ARROW_NO_DEPRECATED_API
-
-// \deprecated Since > 0.7.0
-
-#define INIT_BITSET(valid_bits_vector, valid_bits_index)            \
-  int64_t byte_offset_##valid_bits_vector = (valid_bits_index) / 8; \
-  int64_t bit_offset_##valid_bits_vector = (valid_bits_index) % 8;  \
-  uint8_t bitset_##valid_bits_vector = valid_bits_vector[byte_offset_##valid_bits_vector];
-
-#define READ_NEXT_BITSET(valid_bits_vector)                                          \
-  bit_offset_##valid_bits_vector++;                                                  \
-  if (bit_offset_##valid_bits_vector == 8) {                                         \
-    bit_offset_##valid_bits_vector = 0;                                              \
-    byte_offset_##valid_bits_vector++;                                               \
-    bitset_##valid_bits_vector = valid_bits_vector[byte_offset_##valid_bits_vector]; \
-  }
-
-#endif
 
 // TODO(wesm): The source from Impala was depending on boost::make_unsigned
 //
@@ -298,6 +298,25 @@ static inline int Log2(uint64_t x) {
   return result;
 }
 
+/// \brief Count the number of leading zeros in a 32 bit integer.
+static inline int64_t CountLeadingZeros(uint32_t value) {
+// DCHECK_NE(value, 0);
+#if defined(__clang__) || defined(__GNUC__)
+  return static_cast<int64_t>(__builtin_clz(value));
+#elif defined(_MSC_VER)
+  unsigned long index;                                         // NOLINT
+  _BitScanReverse(&index, static_cast<unsigned long>(value));  // NOLINT
+  return 31LL - static_cast<int64_t>(index);
+#else
+  int64_t bitpos = 0;
+  while (value != 0) {
+    value >>= 1;
+    ++bitpos;
+  }
+  return 32LL - bitpos;
+#endif
+}
+
 /// Swaps the byte order (i.e. endianess)
 static inline int64_t ByteSwap(int64_t value) { return ARROW_BYTE_SWAP64(value); }
 static inline uint64_t ByteSwap(uint64_t value) {
@@ -308,7 +327,7 @@ static inline uint32_t ByteSwap(uint32_t value) {
   return static_cast<uint32_t>(ARROW_BYTE_SWAP32(value));
 }
 static inline int16_t ByteSwap(int16_t value) {
-  constexpr int16_t m = static_cast<int16_t>(0xff);
+  constexpr auto m = static_cast<int16_t>(0xff);
   return static_cast<int16_t>(((value >> 8) & m) | ((value & m) << 8));
 }
 static inline uint16_t ByteSwap(uint16_t value) {
@@ -334,8 +353,8 @@ static inline void ByteSwap(void* dst, const void* src, int len) {
       break;
   }
 
-  uint8_t* d = reinterpret_cast<uint8_t*>(dst);
-  const uint8_t* s = reinterpret_cast<const uint8_t*>(src);
+  auto d = reinterpret_cast<uint8_t*>(dst);
+  auto s = reinterpret_cast<const uint8_t*>(src);
   for (int i = 0; i < len; ++i) {
     d[i] = s[len - i - 1];
   }
@@ -343,37 +362,58 @@ static inline void ByteSwap(void* dst, const void* src, int len) {
 
 /// Converts to big endian format (if not already in big endian) from the
 /// machine's native endian format.
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-static inline int64_t ToBigEndian(int64_t value) { return ByteSwap(value); }
-static inline uint64_t ToBigEndian(uint64_t value) { return ByteSwap(value); }
-static inline int32_t ToBigEndian(int32_t value) { return ByteSwap(value); }
-static inline uint32_t ToBigEndian(uint32_t value) { return ByteSwap(value); }
-static inline int16_t ToBigEndian(int16_t value) { return ByteSwap(value); }
-static inline uint16_t ToBigEndian(uint16_t value) { return ByteSwap(value); }
+#if ARROW_LITTLE_ENDIAN
+template <typename T,
+          typename =
+              EnableIfIsOneOf<T, int64_t, uint64_t, int32_t, uint32_t, int16_t, uint16_t>>
+static inline T ToBigEndian(T value) {
+  return ByteSwap(value);
+}
+
+template <typename T,
+          typename =
+              EnableIfIsOneOf<T, int64_t, uint64_t, int32_t, uint32_t, int16_t, uint16_t>>
+static inline T ToLittleEndian(T value) {
+  return value;
+}
 #else
-static inline int64_t ToBigEndian(int64_t val) { return val; }
-static inline uint64_t ToBigEndian(uint64_t val) { return val; }
-static inline int32_t ToBigEndian(int32_t val) { return val; }
-static inline uint32_t ToBigEndian(uint32_t val) { return val; }
-static inline int16_t ToBigEndian(int16_t val) { return val; }
-static inline uint16_t ToBigEndian(uint16_t val) { return val; }
+template <typename T,
+          typename =
+              EnableIfIsOneOf<T, int64_t, uint64_t, int32_t, uint32_t, int16_t, uint16_t>>
+static inline T ToBigEndian(T value) {
+  return value;
+}
 #endif
 
 /// Converts from big endian format to the machine's native endian format.
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-static inline int64_t FromBigEndian(int64_t value) { return ByteSwap(value); }
-static inline uint64_t FromBigEndian(uint64_t value) { return ByteSwap(value); }
-static inline int32_t FromBigEndian(int32_t value) { return ByteSwap(value); }
-static inline uint32_t FromBigEndian(uint32_t value) { return ByteSwap(value); }
-static inline int16_t FromBigEndian(int16_t value) { return ByteSwap(value); }
-static inline uint16_t FromBigEndian(uint16_t value) { return ByteSwap(value); }
+#if ARROW_LITTLE_ENDIAN
+template <typename T,
+          typename =
+              EnableIfIsOneOf<T, int64_t, uint64_t, int32_t, uint32_t, int16_t, uint16_t>>
+static inline T FromBigEndian(T value) {
+  return ByteSwap(value);
+}
+
+template <typename T,
+          typename =
+              EnableIfIsOneOf<T, int64_t, uint64_t, int32_t, uint32_t, int16_t, uint16_t>>
+static inline T FromLittleEndian(T value) {
+  return value;
+}
 #else
-static inline int64_t FromBigEndian(int64_t val) { return val; }
-static inline uint64_t FromBigEndian(uint64_t val) { return val; }
-static inline int32_t FromBigEndian(int32_t val) { return val; }
-static inline uint32_t FromBigEndian(uint32_t val) { return val; }
-static inline int16_t FromBigEndian(int16_t val) { return val; }
-static inline uint16_t FromBigEndian(uint16_t val) { return val; }
+template <typename T,
+          typename =
+              EnableIfIsOneOf<T, int64_t, uint64_t, int32_t, uint32_t, int16_t, uint16_t>>
+static inline T FromBigEndian(T value) {
+  return value;
+}
+
+template <typename T,
+          typename =
+              EnableIfIsOneOf<T, int64_t, uint64_t, int32_t, uint32_t, int16_t, uint16_t>>
+static inline T FromLittleEndian(T value) {
+  return ByteSwap(value);
+}
 #endif
 
 // Logical right shift for signed integer types
@@ -521,13 +561,6 @@ int64_t CountSetBits(const uint8_t* data, int64_t bit_offset, int64_t length);
 ARROW_EXPORT
 bool BitmapEquals(const uint8_t* left, int64_t left_offset, const uint8_t* right,
                   int64_t right_offset, int64_t bit_length);
-
-#ifndef ARROW_NO_DEPRECATED_API
-/// \deprecated Since 0.7.0
-ARROW_EXPORT
-Status GetEmptyBitmap(MemoryPool* pool, int64_t length,
-                      std::shared_ptr<MutableBuffer>* result);
-#endif
 
 }  // namespace arrow
 

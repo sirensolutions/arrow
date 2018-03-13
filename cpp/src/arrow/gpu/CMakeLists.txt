@@ -40,6 +40,7 @@ set(ARROW_GPU_SHARED_LINK_LIBS
 
 ADD_ARROW_LIB(arrow_gpu
   SOURCES ${ARROW_GPU_SRCS}
+  DEPENDENCIES metadata_fbs
   SHARED_LINK_FLAGS ""
   SHARED_LINK_LIBS ${ARROW_GPU_SHARED_LINK_LIBS}
   STATIC_LINK_LIBS ""
@@ -47,11 +48,11 @@ ADD_ARROW_LIB(arrow_gpu
 
 # CUDA build version
 configure_file(cuda_version.h.in
-  "${CMAKE_CURRENT_SOURCE_DIR}/cuda_version.h"
+  "${CMAKE_CURRENT_BINARY_DIR}/cuda_version.h"
   @ONLY)
 
 install(FILES
-  "${CMAKE_CURRENT_SOURCE_DIR}/cuda_version.h"
+  "${CMAKE_CURRENT_BINARY_DIR}/cuda_version.h"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/arrow/gpu")
 
 install(FILES
@@ -76,7 +77,8 @@ set(ARROW_GPU_TEST_LINK_LIBS
 
 if (ARROW_BUILD_TESTS)
   ADD_ARROW_TEST(cuda-test
-    STATIC_LINK_LIBS ${ARROW_GPU_TEST_LINK_LIBS})
+    STATIC_LINK_LIBS ${ARROW_GPU_TEST_LINK_LIBS}
+    NO_VALGRIND)
 endif()
 
 if (ARROW_BUILD_BENCHMARKS)

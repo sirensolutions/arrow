@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from collections import defaultdict
 import os
 import inspect
 import json
@@ -54,6 +55,24 @@ class ParquetFile(object):
         self.reader = ParquetReader()
         self.reader.open(source, metadata=metadata)
         self.common_metadata = common_metadata
+        self._nested_paths_by_prefix = self._build_nested_paths()
+
+    def _build_nested_paths(self):
+        paths = self.reader.column_paths
+
+        result = defaultdict(list)
+
+        def _visit_piece(i, key, rest):
+            result[key].append(i)
+
+            if len(rest) > 0:
+                nested_key = '.'.join((key, rest[0]))
+                _visit_piece(i, nested_key, rest[1:])
+
+        for i, path in enumerate(paths):
+            _visit_piece(i, path[0], path[1:])
+
+        return result
 
     @property
     def metadata(self):
@@ -75,7 +94,9 @@ class ParquetFile(object):
         Parameters
         ----------
         columns: list
-            If not None, only these columns will be read from the row group.
+            If not None, only these columns will be read from the row group. A
+            column name may be a prefix of a nested field, e.g. 'a' will select
+            'a.b', 'a.c', and 'a.d.e'
         nthreads : int, default 1
             Number of columns to read in parallel. If > 1, requires that the
             underlying file source is threadsafe
@@ -100,7 +121,9 @@ class ParquetFile(object):
         Parameters
         ----------
         columns: list
-            If not None, only these columns will be read from the file.
+            If not None, only these columns will be read from the file. A
+            column name may be a prefix of a nested field, e.g. 'a' will select
+            'a.b', 'a.c', and 'a.d.e'
         nthreads : int, default 1
             Number of columns to read in parallel. If > 1, requires that the
             underlying file source is threadsafe
@@ -143,7 +166,11 @@ class ParquetFile(object):
         if column_names is None:
             return None
 
-        indices = list(map(self.reader.column_name_idx, column_names))
+        indices = []
+
+        for name in column_names:
+            if name in self._nested_paths_by_prefix:
+                indices.extend(self._nested_paths_by_prefix[name])
 
         if use_pandas_metadata:
             file_keyvalues = self.metadata.metadata
@@ -202,17 +229,47 @@ def _sanitize_table(table, new_schema, flavor):
         return table
 
 
-class ParquetWriter(object):
-    """
+_parquet_writer_arg_docs = """version : {"1.0", "2.0"}, default "1.0"
+    The Parquet format version, defaults to 1.0
+use_dictionary : bool or list
+    Specify if we should use dictionary encoding in general or only for
+    some columns.
+use_deprecated_int96_timestamps : boolean, default None
+    Write nanosecond resolution timestamps to INT96 Parquet
+    format. Defaults to False unless enabled by flavor argument
+coerce_timestamps : string, default None
+    Cast timestamps a particular resolution.
+    Valid values: {None, 'ms', 'us'}
+compression : str or dict
+    Specify the compression codec, either on a general basis or per-column.
+flavor : {'spark'}, default None
+    Sanitize schema or set other compatibility options for compatibility"""
 
-    Parameters
-    ----------
-    where
-    schema
-    flavor : {'spark', ...}
-        Set options for compatibility with a particular reader
-    """
-    def __init__(self, where, schema, flavor=None, **options):
+
+class ParquetWriter(object):
+
+    __doc__ = """
+Class for incrementally building a Parquet file for Arrow tables
+
+Parameters
+----------
+where : path or file-like object
+schema : arrow Schema
+{0}
+""".format(_parquet_writer_arg_docs)
+
+    def __init__(self, where, schema, flavor=None,
+                 version='1.0',
+                 use_dictionary=True,
+                 compression='snappy',
+                 use_deprecated_int96_timestamps=None, **options):
+        if use_deprecated_int96_timestamps is None:
+            # Use int96 timestamps for Spark
+            if flavor is not None and 'spark' in flavor:
+                use_deprecated_int96_timestamps = True
+            else:
+                use_deprecated_int96_timestamps = False
+
         self.flavor = flavor
         if flavor is not None:
             schema, self.schema_changed = _sanitize_schema(schema, flavor)
@@ -220,15 +277,29 @@ class ParquetWriter(object):
             self.schema_changed = False
 
         self.schema = schema
-        self.writer = _parquet.ParquetWriter(where, schema, **options)
+        self.writer = _parquet.ParquetWriter(
+            where, schema,
+            version=version,
+            compression=compression,
+            use_dictionary=use_dictionary,
+            use_deprecated_int96_timestamps=use_deprecated_int96_timestamps,
+            **options)
+        self.is_open = True
+
+    def __del__(self):
+        if getattr(self, 'is_open', False):
+            self.close()
 
     def write_table(self, table, row_group_size=None):
         if self.schema_changed:
             table = _sanitize_table(table, self.schema, self.flavor)
+        assert self.is_open
         self.writer.write_table(table, row_group_size=row_group_size)
 
     def close(self):
-        self.writer.close()
+        if self.is_open:
+            self.writer.close()
+            self.is_open = False
 
 
 def _get_pandas_index_columns(keyvalues):
@@ -377,10 +448,6 @@ class ParquetDatasetPiece(object):
         return table
 
 
-def _is_parquet_file(path):
-    return path.endswith('parq') or path.endswith('parquet')
-
-
 class PartitionSet(object):
     """A data structure for cataloguing the observed Parquet partitions at a
     particular level. So if we have
@@ -512,14 +579,14 @@ class ParquetManifest(object):
         filtered_files = []
         for path in files:
             full_path = self.pathsep.join((base_path, path))
-            if _is_parquet_file(path):
-                filtered_files.append(full_path)
-            elif path.endswith('_common_metadata'):
+            if path.endswith('_common_metadata'):
                 self.common_metadata_path = full_path
             elif path.endswith('_metadata'):
                 self.metadata_path = full_path
-            elif not self._should_silently_exclude(path):
+            elif self._should_silently_exclude(path):
                 print('Ignoring path: {0}'.format(full_path))
+            else:
+                filtered_files.append(full_path)
 
         # ARROW-1079: Filter out "private" directories starting with underscore
         filtered_directories = [self.pathsep.join((base_path, x))
@@ -529,7 +596,7 @@ class ParquetManifest(object):
         filtered_files.sort()
         filtered_directories.sort()
 
-        if len(files) > 0 and len(filtered_directories) > 0:
+        if len(filtered_files) > 0 and len(filtered_directories) > 0:
             raise ValueError('Found files in an intermediate '
                              'directory: {0}'.format(base_path))
         elif len(filtered_directories) > 0:
@@ -797,7 +864,9 @@ def read_table(source, columns=None, nthreads=1, metadata=None,
         name or directory name. For passing Python file objects or byte
         buffers, see pyarrow.io.PythonFileInterface or pyarrow.io.BufferReader.
     columns: list
-        If not None, only these columns will be read from the file.
+        If not None, only these columns will be read from the file. A column
+        name may be a prefix of a nested field, e.g. 'a' will select 'a.b',
+        'a.c', and 'a.d.e'
     nthreads : int, default 1
         Number of columns to read in parallel. Requires that the underlying
         file source is threadsafe
@@ -835,7 +904,9 @@ def read_pandas(source, columns=None, nthreads=1, metadata=None):
         name. For passing Python file objects or byte buffers,
         see pyarrow.io.PythonFileInterface or pyarrow.io.BufferReader.
     columns: list
-        If not None, only these columns will be read from the file.
+        If not None, only these columns will be read from the file. A column
+        name may be a prefix of a nested field, e.g. 'a' will select 'a.b',
+        'a.c', and 'a.d.e'
     nthreads : int, default 1
         Number of columns to read in parallel. Requires that the underlying
         file source is threadsafe
@@ -857,54 +928,21 @@ def write_table(table, where, row_group_size=None, version='1.0',
                 use_deprecated_int96_timestamps=None,
                 coerce_timestamps=None,
                 flavor=None, **kwargs):
-    """
-    Write a Table to Parquet format
-
-    Parameters
-    ----------
-    table : pyarrow.Table
-    where: string or pyarrow.io.NativeFile
-    row_group_size : int, default None
-        The maximum number of rows in each Parquet RowGroup. As a default,
-        we will write a single RowGroup per file.
-    version : {"1.0", "2.0"}, default "1.0"
-        The Parquet format version, defaults to 1.0
-    use_dictionary : bool or list
-        Specify if we should use dictionary encoding in general or only for
-        some columns.
-    use_deprecated_int96_timestamps : boolean, default None
-        Write nanosecond resolution timestamps to INT96 Parquet
-        format. Defaults to False unless enabled by flavor argument
-    coerce_timestamps : string, default None
-        Cast timestamps a particular resolution.
-        Valid values: {None, 'ms', 'us'}
-    compression : str or dict
-        Specify the compression codec, either on a general basis or per-column.
-    flavor : {'spark'}, default None
-        Sanitize schema or set other compatibility options for compatibility
-    """
-    row_group_size = kwargs.get('chunk_size', row_group_size)
-
-    if use_deprecated_int96_timestamps is None:
-        # Use int96 timestamps for Spark
-        if flavor is not None and 'spark' in flavor:
-            use_deprecated_int96_timestamps = True
-        else:
-            use_deprecated_int96_timestamps = False
-
-    options = dict(
-        use_dictionary=use_dictionary,
-        compression=compression,
-        version=version,
-        use_deprecated_int96_timestamps=use_deprecated_int96_timestamps,
-        coerce_timestamps=coerce_timestamps)
+    row_group_size = kwargs.pop('chunk_size', row_group_size)
 
     writer = None
     try:
-        writer = ParquetWriter(where, table.schema, flavor=flavor,
-                               **options)
+        writer = ParquetWriter(
+            where, table.schema,
+            version=version,
+            flavor=flavor,
+            use_dictionary=use_dictionary,
+            coerce_timestamps=coerce_timestamps,
+            compression=compression,
+            use_deprecated_int96_timestamps=use_deprecated_int96_timestamps,
+            **kwargs)
         writer.write_table(table, row_group_size=row_group_size)
-    except:
+    except Exception:
         if writer is not None:
             writer.close()
         if isinstance(where, six.string_types):
@@ -915,6 +953,17 @@ def write_table(table, where, row_group_size=None, version='1.0',
         raise
     else:
         writer.close()
+
+
+write_table.__doc__ = """
+Write a Table to Parquet format
+
+Parameters
+----------
+table : pyarrow.Table
+where: string or pyarrow.io.NativeFile
+{0}
+""".format(_parquet_writer_arg_docs)
 
 
 def write_to_dataset(table, root_path, partition_cols=None,
@@ -963,8 +1012,11 @@ def write_to_dataset(table, root_path, partition_cols=None,
     else:
         fs = _ensure_filesystem(filesystem)
 
-    if not fs.exists(root_path):
-        fs.mkdir(root_path)
+    if fs._isfilestore() and not fs.exists(root_path):
+        try:
+            fs.mkdir(root_path)
+        except OSError:
+            assert fs.exists(root_path)
 
     if partition_cols is not None and len(partition_cols) > 0:
         df = table.to_pandas()
@@ -982,7 +1034,7 @@ def write_to_dataset(table, root_path, partition_cols=None,
             subtable = Table.from_pandas(subgroup,
                                          preserve_index=preserve_index)
             prefix = "/".join([root_path, subdir])
-            if not fs.exists(prefix):
+            if fs._isfilestore() and not fs.exists(prefix):
                 fs.mkdir(prefix)
             outfile = compat.guid() + ".parquet"
             full_path = "/".join([prefix, outfile])
@@ -1013,12 +1065,10 @@ def write_metadata(schema, where, version='1.0',
         Cast timestamps a particular resolution.
         Valid values: {None, 'ms', 'us'}
     """
-    options = dict(
-        version=version,
+    writer = ParquetWriter(
+        where, schema, version=version,
         use_deprecated_int96_timestamps=use_deprecated_int96_timestamps,
-        coerce_timestamps=coerce_timestamps
-    )
-    writer = ParquetWriter(where, schema, **options)
+        coerce_timestamps=coerce_timestamps)
     writer.close()
 
 

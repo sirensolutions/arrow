@@ -29,6 +29,7 @@
 #include "arrow/ipc/Schema_generated.h"
 #include "arrow/ipc/metadata-internal.h"
 #include "arrow/status.h"
+#include "arrow/util/logging.h"
 
 namespace arrow {
 namespace ipc {
@@ -43,7 +44,7 @@ class Message::MessageImpl {
     message_ = flatbuf::GetMessage(metadata_->data());
 
     // Check that the metadata version is supported
-    if (message_->version() < kMinMetadataVersion) {
+    if (message_->version() < internal::kMinMetadataVersion) {
       return Status::Invalid("Old metadata version not supported");
     }
 
@@ -66,20 +67,7 @@ class Message::MessageImpl {
   }
 
   MetadataVersion version() const {
-    switch (message_->version()) {
-      case flatbuf::MetadataVersion_V1:
-        // Arrow 0.1
-        return MetadataVersion::V1;
-      case flatbuf::MetadataVersion_V2:
-        // Arrow 0.2
-        return MetadataVersion::V2;
-      case flatbuf::MetadataVersion_V3:
-        // Arrow >= 0.3
-        return MetadataVersion::V3;
-      // Add cases as other versions become available
-      default:
-        return MetadataVersion::V3;
-    }
+    return internal::GetMetadataVersion(message_->version());
   }
 
   const void* header() const { return message_->header(); }
@@ -165,7 +153,7 @@ Status Message::ReadFrom(const std::shared_ptr<Buffer>& metadata, io::InputStrea
 
 Status Message::SerializeTo(io::OutputStream* file, int64_t* output_length) const {
   int32_t metadata_length = 0;
-  RETURN_NOT_OK(WriteMessage(*metadata(), file, &metadata_length));
+  RETURN_NOT_OK(internal::WriteMessage(*metadata(), file, &metadata_length));
 
   *output_length = metadata_length;
 
@@ -194,8 +182,17 @@ std::string FormatMessageType(Message::Type type) {
 
 Status ReadMessage(int64_t offset, int32_t metadata_length, io::RandomAccessFile* file,
                    std::unique_ptr<Message>* message) {
+  DCHECK_GT(static_cast<size_t>(metadata_length), sizeof(int32_t));
+
   std::shared_ptr<Buffer> buffer;
   RETURN_NOT_OK(file->ReadAt(offset, metadata_length, &buffer));
+
+  if (buffer->size() < metadata_length) {
+    std::stringstream ss;
+    ss << "Expected to read " << metadata_length << " metadata bytes but got "
+       << buffer->size();
+    return Status::Invalid(ss.str());
+  }
 
   int32_t flatbuffer_size = *reinterpret_cast<const int32_t*>(buffer->data());
 
@@ -239,11 +236,35 @@ Status ReadMessage(io::InputStream* file, std::unique_ptr<Message>* message) {
 // ----------------------------------------------------------------------
 // Implement InputStream message reader
 
-Status InputStreamMessageReader::ReadNextMessage(std::unique_ptr<Message>* message) {
-  return ReadMessage(stream_, message);
+/// \brief Implementation of MessageReader that reads from InputStream
+class InputStreamMessageReader : public MessageReader {
+ public:
+  explicit InputStreamMessageReader(io::InputStream* stream) : stream_(stream) {}
+
+  explicit InputStreamMessageReader(const std::shared_ptr<io::InputStream>& owned_stream)
+      : InputStreamMessageReader(owned_stream.get()) {
+    owned_stream_ = owned_stream;
+  }
+
+  ~InputStreamMessageReader() {}
+
+  Status ReadNextMessage(std::unique_ptr<Message>* message) {
+    return ReadMessage(stream_, message);
+  }
+
+ private:
+  io::InputStream* stream_;
+  std::shared_ptr<io::InputStream> owned_stream_;
+};
+
+std::unique_ptr<MessageReader> MessageReader::Open(io::InputStream* stream) {
+  return std::unique_ptr<MessageReader>(new InputStreamMessageReader(stream));
 }
 
-InputStreamMessageReader::~InputStreamMessageReader() {}
+std::unique_ptr<MessageReader> MessageReader::Open(
+    const std::shared_ptr<io::InputStream>& owned_stream) {
+  return std::unique_ptr<MessageReader>(new InputStreamMessageReader(owned_stream));
+}
 
 }  // namespace ipc
 }  // namespace arrow

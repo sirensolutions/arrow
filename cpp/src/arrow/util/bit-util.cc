@@ -31,6 +31,7 @@
 #include "arrow/memory_pool.h"
 #include "arrow/status.h"
 #include "arrow/util/bit-util.h"
+#include "arrow/util/logging.h"
 
 namespace arrow {
 
@@ -48,9 +49,9 @@ Status BitUtil::BytesToBits(const std::vector<uint8_t>& bytes, MemoryPool* pool,
 
   std::shared_ptr<Buffer> buffer;
   RETURN_NOT_OK(AllocateBuffer(pool, bit_length, &buffer));
-
-  memset(buffer->mutable_data(), 0, static_cast<size_t>(bit_length));
-  FillBitsFromBytes(bytes, buffer->mutable_data());
+  uint8_t* out_buf = buffer->mutable_data();
+  memset(out_buf, 0, static_cast<size_t>(bit_length));
+  FillBitsFromBytes(bytes, out_buf);
 
   *out = buffer;
   return Status::OK();
@@ -100,14 +101,6 @@ int64_t CountSetBits(const uint8_t* data, int64_t bit_offset, int64_t length) {
 Status GetEmptyBitmap(MemoryPool* pool, int64_t length, std::shared_ptr<Buffer>* result) {
   RETURN_NOT_OK(AllocateBuffer(pool, BitUtil::BytesForBits(length), result));
   memset((*result)->mutable_data(), 0, static_cast<size_t>((*result)->size()));
-  return Status::OK();
-}
-
-Status GetEmptyBitmap(MemoryPool* pool, int64_t length,
-                      std::shared_ptr<MutableBuffer>* result) {
-  std::shared_ptr<Buffer> buffer;
-  RETURN_NOT_OK(GetEmptyBitmap(pool, length, &buffer));
-  *result = std::dynamic_pointer_cast<MutableBuffer>(buffer);
   return Status::OK();
 }
 

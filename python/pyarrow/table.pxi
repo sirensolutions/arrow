@@ -102,7 +102,20 @@ cdef class ChunkedArray:
         pyarrow.Array
         """
         self._check_nullptr()
+
+        if i >= self.num_chunks or i < 0:
+            raise IndexError('Chunk index out of range.')
+
         return pyarrow_wrap_array(self.chunked_array.chunk(i))
+
+    property chunks:
+
+        def __get__(self):
+            cdef int i
+            chunks = []
+            for i in range(self.num_chunks):
+                chunks.append(self.chunk(i))
+            return chunks
 
     def iterchunks(self):
         for i in range(self.num_chunks):
@@ -116,6 +129,83 @@ cdef class ChunkedArray:
         for i in range(self.num_chunks):
             result += self.chunk(i).to_pylist()
         return result
+
+
+def chunked_array(arrays, type=None):
+    """
+    Construct chunked array from list of array-like objects
+
+    Parameters
+    ----------
+    arrays : list of Array or values coercible to arrays
+    type : DataType or string coercible to DataType
+
+    Returns
+    -------
+    ChunkedArray
+    """
+    cdef:
+        Array arr
+        vector[shared_ptr[CArray]] c_arrays
+        shared_ptr[CChunkedArray] sp_chunked_array
+
+    for x in arrays:
+        if isinstance(x, Array):
+            arr = x
+            if type is not None:
+                assert x.type == type
+        else:
+            arr = array(x, type=type)
+
+        c_arrays.push_back(arr.sp_array)
+
+    sp_chunked_array.reset(new CChunkedArray(c_arrays))
+    return pyarrow_wrap_chunked_array(sp_chunked_array)
+
+
+def column(object field_or_name, arr):
+    """
+    Create Column object from field/string and array-like data
+
+    Parameters
+    ----------
+    field_or_name : string or Field
+    arr : Array, list of Arrays, or ChunkedArray
+
+    Returns
+    -------
+    column : Column
+    """
+    cdef:
+        Field boxed_field
+        Array _arr
+        ChunkedArray _carr
+        shared_ptr[CColumn] sp_column
+
+    if isinstance(arr, list):
+        arr = chunked_array(arr)
+    elif not isinstance(arr, (Array, ChunkedArray)):
+        arr = array(arr)
+
+    if isinstance(field_or_name, Field):
+        boxed_field = field_or_name
+        if arr.type != boxed_field.type:
+            raise ValueError('Passed field type does not match array')
+    else:
+        boxed_field = field(field_or_name, arr.type)
+
+    if isinstance(arr, Array):
+        _arr = arr
+        sp_column.reset(new CColumn(boxed_field.sp_field, _arr.sp_array))
+    elif isinstance(arr, ChunkedArray):
+        _carr = arr
+        sp_column.reset(new CColumn(boxed_field.sp_field,
+                                    _carr.sp_chunked_array))
+    else:
+        raise ValueError("Unsupported type for column(...): {}"
+                         .format(type(arr)))
+
+    return pyarrow_wrap_column(sp_column)
 
 
 cdef class Column:
@@ -139,27 +229,49 @@ cdef class Column:
         result = StringIO()
         result.write(object.__repr__(self))
         data = self.data
-        for i in range(len(data)):
-            result.write('\nchunk {0}: {1}'.format(i, repr(data.chunk(0))))
+        for i, chunk in enumerate(data.chunks):
+            result.write('\nchunk {0}: {1}'.format(i, repr(chunk)))
 
         return result.getvalue()
 
     @staticmethod
-    def from_array(object field_or_name, Array arr):
-        cdef Field boxed_field
+    def from_array(*args):
+        return column(*args)
 
-        if isinstance(field_or_name, Field):
-            boxed_field = field_or_name
-            if arr.type != boxed_field.type:
-                raise ValueError('Passed field type does not match array')
-        else:
-            boxed_field = field(field_or_name, arr.type)
+    def cast(self, object target_type, safe=True):
+        """
+        Cast column values to another data type
 
-        cdef shared_ptr[CColumn] sp_column
-        sp_column.reset(new CColumn(boxed_field.sp_field, arr.sp_array))
-        return pyarrow_wrap_column(sp_column)
+        Parameters
+        ----------
+        target_type : DataType
+            Type to cast to
+        safe : boolean, default True
+            Check for overflows or other unsafe conversions
 
-    def to_pandas(self, strings_to_categorical=False):
+        Returns
+        -------
+        casted : Column
+        """
+        cdef:
+            CCastOptions options
+            shared_ptr[CArray] result
+            DataType type
+            CDatum out
+
+        type = _ensure_type(target_type)
+
+        options.allow_int_overflow = not safe
+        options.allow_time_truncate = not safe
+
+        with nogil:
+            check_status(Cast(_context(), CDatum(self.column.data()),
+                              type.sp_type, options, &out))
+
+        casted_data = pyarrow_wrap_chunked_array(out.chunked_array())
+        return column(self.name, casted_data)
+
+    def to_pandas(self, strings_to_categorical=False, zero_copy_only=False):
         """
         Convert the arrow::Column to a pandas.Series
 
@@ -171,7 +283,9 @@ cdef class Column:
             PyObject* out
             PandasOptions options
 
-        options = PandasOptions(strings_to_categorical=strings_to_categorical)
+        options = PandasOptions(
+            strings_to_categorical=strings_to_categorical,
+            zero_copy_only=zero_copy_only)
 
         with nogil:
             check_status(libarrow.ConvertColumnToPandas(options,
@@ -234,6 +348,10 @@ cdef class Column:
     def length(self):
         self._check_nullptr()
         return self.column.length()
+
+    @property
+    def field(self):
+        return pyarrow_wrap_field(self.column.field())
 
     @property
     def shape(self):
@@ -304,8 +422,8 @@ cdef shared_ptr[const CKeyValueMetadata] unbox_metadata(dict metadata):
             make_shared[CKeyValueMetadata](unordered_metadata))
 
 
-cdef int _schema_from_arrays(
-        arrays, names, dict metadata, shared_ptr[CSchema]* schema) except -1:
+cdef _schema_from_arrays(arrays, names, dict metadata,
+                         shared_ptr[CSchema]* schema):
     cdef:
         Column col
         c_string c_name
@@ -313,10 +431,11 @@ cdef int _schema_from_arrays(
         shared_ptr[CDataType] type_
         Py_ssize_t K = len(arrays)
 
-    fields.resize(K)
+    if K == 0:
+        schema.reset(new CSchema(fields, unbox_metadata(metadata)))
+        return
 
-    if not K:
-        raise ValueError('Must pass at least one array')
+    fields.resize(K)
 
     if isinstance(arrays[0], Column):
         for i in range(K):
@@ -338,11 +457,13 @@ cdef int _schema_from_arrays(
             else:
                 raise TypeError(type(val))
 
-            c_name = tobytes(names[i])
+            if names[i] is None:
+                c_name = tobytes(u'None')
+            else:
+                c_name = tobytes(names[i])
             fields[i].reset(new CField(c_name, type_, True))
 
     schema.reset(new CSchema(fields, unbox_metadata(metadata)))
-    return 0
 
 
 cdef class RecordBatch:
@@ -556,7 +677,8 @@ cdef class RecordBatch:
         return Table.from_batches([self]).to_pandas(nthreads=nthreads)
 
     @classmethod
-    def from_pandas(cls, df, Schema schema=None, bint preserve_index=True):
+    def from_pandas(cls, df, Schema schema=None, bint preserve_index=True,
+                    nthreads=None):
         """
         Convert pandas.DataFrame to an Arrow RecordBatch
 
@@ -569,13 +691,16 @@ cdef class RecordBatch:
         preserve_index : bool, optional
             Whether to store the index as an additional column in the resulting
             ``RecordBatch``.
+        nthreads : int, default None (may use up to system CPU count threads)
+            If greater than 1, convert columns to Arrow in parallel using
+            indicated number of threads
 
         Returns
         -------
         pyarrow.RecordBatch
         """
         names, arrays, metadata = pdcompat.dataframe_to_arrays(
-            df, False, schema, preserve_index
+            df, schema, preserve_index, nthreads=nthreads
         )
         return cls.from_arrays(arrays, names, metadata)
 
@@ -599,24 +724,23 @@ cdef class RecordBatch:
             Array arr
             c_string c_name
             shared_ptr[CSchema] schema
-            shared_ptr[CRecordBatch] batch
             vector[shared_ptr[CArray]] c_arrays
             int64_t num_rows
             int64_t i
             int64_t number_of_arrays = len(arrays)
 
-        if not number_of_arrays:
-            raise ValueError('Record batch cannot contain no arrays (for now)')
-
-        num_rows = len(arrays[0])
+        if len(arrays) > 0:
+            num_rows = len(arrays[0])
+        else:
+            num_rows = 0
         _schema_from_arrays(arrays, names, metadata, &schema)
 
         c_arrays.reserve(len(arrays))
         for arr in arrays:
             c_arrays.push_back(arr.sp_array)
 
-        batch.reset(new CRecordBatch(schema, num_rows, c_arrays))
-        return pyarrow_wrap_batch(batch)
+        return pyarrow_wrap_batch(
+            CRecordBatch.Make(schema, num_rows, c_arrays))
 
 
 def table_to_blocks(PandasOptions options, Table table, int nthreads,
@@ -714,27 +838,23 @@ cdef class Table:
         return result
 
     @classmethod
-    def from_pandas(cls, df, bint timestamps_to_ms=False,
-                    Schema schema=None, bint preserve_index=True):
+    def from_pandas(cls, df, Schema schema=None, bint preserve_index=True,
+                    nthreads=None):
         """
         Convert pandas.DataFrame to an Arrow Table
 
         Parameters
         ----------
         df : pandas.DataFrame
-        timestamps_to_ms : bool
-            Convert datetime columns to ms resolution. This is needed for
-            compability with other functionality like Parquet I/O which
-            only supports milliseconds.
-
-            .. deprecated:: 0.7.0
-
         schema : pyarrow.Schema, optional
             The expected schema of the Arrow Table. This can be used to
             indicate the type of columns if we cannot infer it automatically.
         preserve_index : bool, optional
             Whether to store the index as an additional column in the resulting
             ``Table``.
+        nthreads : int, default None (may use up to system CPU count threads)
+            If greater than 1, convert columns to Arrow in parallel using
+            indicated number of threads
 
         Returns
         -------
@@ -754,9 +874,9 @@ cdef class Table:
         """
         names, arrays, metadata = pdcompat.dataframe_to_arrays(
             df,
-            timestamps_to_ms=timestamps_to_ms,
             schema=schema,
-            preserve_index=preserve_index
+            preserve_index=preserve_index,
+            nthreads=nthreads
         )
         return cls.from_arrays(arrays, names=names, metadata=metadata)
 
@@ -825,8 +945,7 @@ cdef class Table:
             else:
                 raise ValueError(type(arrays[i]))
 
-        table.reset(new CTable(c_schema, columns))
-        return pyarrow_wrap_table(table)
+        return pyarrow_wrap_table(CTable.Make(c_schema, columns))
 
     @staticmethod
     def from_batches(batches):
@@ -852,8 +971,46 @@ cdef class Table:
 
         return pyarrow_wrap_table(c_table)
 
+    def to_batches(self, chunksize=None):
+        """
+        Convert Table to list of (contiguous) RecordBatch objects, with optimal
+        maximum chunk size
+
+        Parameters
+        ----------
+        chunksize : int, default None
+            Maximum size for RecordBatch chunks. Individual chunks may be
+            smaller depending on the chunk layout of individual columns
+
+        Returns
+        -------
+        batches : list of RecordBatch
+        """
+        cdef:
+            unique_ptr[TableBatchReader] reader
+            int64_t c_chunksize
+            list result = []
+            shared_ptr[CRecordBatch] batch
+
+        reader.reset(new TableBatchReader(deref(self.table)))
+
+        if chunksize is not None:
+            c_chunksize = chunksize
+            reader.get().set_chunksize(c_chunksize)
+
+        while True:
+            with nogil:
+                check_status(reader.get().ReadNext(&batch))
+
+            if batch.get() == NULL:
+                break
+
+            result.append(pyarrow_wrap_batch(batch))
+
+        return result
+
     def to_pandas(self, nthreads=None, strings_to_categorical=False,
-                  memory_pool=None):
+                  memory_pool=None, zero_copy_only=False):
         """
         Convert the arrow::Table to a pandas DataFrame
 
@@ -867,6 +1024,9 @@ cdef class Table:
             Encode string (UTF8) and binary types to pandas.Categorical
         memory_pool: MemoryPool, optional
             Specific memory pool to use to allocate casted columns
+        zero_copy_only : boolean, default False
+            Raise an ArrowException if this function call would require copying
+            the underlying data
 
         Returns
         -------
@@ -874,7 +1034,9 @@ cdef class Table:
         """
         cdef:
             PandasOptions options
-        options = PandasOptions(strings_to_categorical=strings_to_categorical)
+        options = PandasOptions(
+            strings_to_categorical=strings_to_categorical,
+            zero_copy_only=zero_copy_only)
         self._check_nullptr()
         if nthreads is None:
             nthreads = cpu_count()

@@ -60,9 +60,9 @@ public class TestDecimalVector {
 
   @Test
   public void testValuesWriteRead() {
-    try (NullableDecimalVector decimalVector = TestUtils.newVector(NullableDecimalVector.class, "decimal", new ArrowType.Decimal(10, scale), allocator);) {
+    try (DecimalVector decimalVector = TestUtils.newVector(DecimalVector.class, "decimal", new ArrowType.Decimal(10, scale), allocator);) {
 
-      try (NullableDecimalVector oldConstructor = new NullableDecimalVector("decimal", allocator, 10, scale);) {
+      try (DecimalVector oldConstructor = new DecimalVector("decimal", allocator, 10, scale);) {
         assertEquals(decimalVector.getField().getType(), oldConstructor.getField().getType());
       }
 
@@ -71,28 +71,28 @@ public class TestDecimalVector {
       for (int i = 0; i < intValues.length; i++) {
         BigDecimal decimal = new BigDecimal(BigInteger.valueOf(intValues[i]), scale);
         values[i] = decimal;
-        decimalVector.getMutator().setSafe(i, decimal);
+        decimalVector.setSafe(i, decimal);
       }
 
-      decimalVector.getMutator().setValueCount(intValues.length);
+      decimalVector.setValueCount(intValues.length);
 
       for (int i = 0; i < intValues.length; i++) {
-        BigDecimal value = decimalVector.getAccessor().getObject(i);
-        assertEquals(values[i], value);
+        BigDecimal value = decimalVector.getObject(i);
+        assertEquals("unexpected data at index: " + i, values[i], value);
       }
     }
   }
 
   @Test
   public void testBigDecimalDifferentScaleAndPrecision() {
-    try (NullableDecimalVector decimalVector = TestUtils.newVector(NullableDecimalVector.class, "decimal", new ArrowType.Decimal(4, 2), allocator);) {
+    try (DecimalVector decimalVector = TestUtils.newVector(DecimalVector.class, "decimal", new ArrowType.Decimal(4, 2), allocator);) {
       decimalVector.allocateNew();
 
       // test BigDecimal with different scale
       boolean hasError = false;
       try {
         BigDecimal decimal = new BigDecimal(BigInteger.valueOf(0), 3);
-        decimalVector.getMutator().setSafe(0, decimal);
+        decimalVector.setSafe(0, decimal);
       } catch (UnsupportedOperationException ue) {
         hasError = true;
       } finally {
@@ -103,7 +103,7 @@ public class TestDecimalVector {
       hasError = false;
       try {
         BigDecimal decimal = new BigDecimal(BigInteger.valueOf(12345), 2);
-        decimalVector.getMutator().setSafe(0, decimal);
+        decimalVector.setSafe(0, decimal);
       } catch (UnsupportedOperationException ue) {
         hasError = true;
       } finally {

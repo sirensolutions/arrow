@@ -29,10 +29,10 @@
 #include "arrow/buffer.h"
 #include "arrow/memory_pool.h"
 #include "arrow/status.h"
-#include "arrow/table.h"
 #include "arrow/type.h"
 #include "arrow/type_traits.h"
 #include "arrow/util/bit-util.h"
+#include "arrow/util/hash.h"
 #include "arrow/util/macros.h"
 #include "arrow/util/visibility.h"
 
@@ -59,9 +59,9 @@ class ARROW_EXPORT ArrayBuilder {
   explicit ArrayBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool)
       : type_(type),
         pool_(pool),
-        null_bitmap_(nullptr),
+        null_bitmap_(NULLPTR),
         null_count_(0),
-        null_bitmap_data_(nullptr),
+        null_bitmap_data_(NULLPTR),
         length_(0),
         capacity_(0) {}
 
@@ -108,11 +108,32 @@ class ARROW_EXPORT ArrayBuilder {
 
   std::shared_ptr<PoolBuffer> null_bitmap() const { return null_bitmap_; }
 
-  /// Creates new Array object to hold the contents of the builder and transfers
-  /// ownership of the data.  This resets all variables on the builder.
-  virtual Status Finish(std::shared_ptr<Array>* out) = 0;
+  /// \brief Return result of builder as an internal generic ArrayData
+  /// object. Resets builder
+  ///
+  /// \param[out] out the finalized ArrayData object
+  /// \return Status
+  virtual Status FinishInternal(std::shared_ptr<ArrayData>* out) = 0;
+
+  /// \brief Return result of builder as an Array object. Resets builder
+  ///
+  /// \param[out] out the finalized Array object
+  /// \return Status
+  Status Finish(std::shared_ptr<Array>* out);
 
   std::shared_ptr<DataType> type() const { return type_; }
+
+  // Unsafe operations (don't check capacity/don't resize)
+
+  // Append to null bitmap.
+  void UnsafeAppendToBitmap(bool is_valid) {
+    if (is_valid) {
+      BitUtil::SetBit(null_bitmap_data_, length_);
+    } else {
+      ++null_count_;
+    }
+    ++length_;
+  }
 
  protected:
   ArrayBuilder() {}
@@ -133,18 +154,6 @@ class ARROW_EXPORT ArrayBuilder {
   std::vector<std::unique_ptr<ArrayBuilder>> children_;
 
   void Reset();
-
-  // Unsafe operations (don't check capacity/don't resize)
-
-  // Append to null bitmap.
-  void UnsafeAppendToBitmap(bool is_valid) {
-    if (is_valid) {
-      BitUtil::SetBit(null_bitmap_data_, length_);
-    } else {
-      ++null_count_;
-    }
-    ++length_;
-  }
 
   // Vector append. Treat each zero byte as a nullzero. If valid_bytes is null
   // assume all of length bits are valid.
@@ -170,7 +179,7 @@ class ARROW_EXPORT NullBuilder : public ArrayBuilder {
     return Status::OK();
   }
 
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 };
 
 template <typename Type>
@@ -179,12 +188,7 @@ class ARROW_EXPORT PrimitiveBuilder : public ArrayBuilder {
   using value_type = typename Type::c_type;
 
   explicit PrimitiveBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool)
-      : ArrayBuilder(type, pool), data_(nullptr), raw_data_(nullptr) {}
-
-#ifndef ARROW_NO_DEPRECATED_API
-  explicit PrimitiveBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type)
-      : PrimitiveBuilder(type, pool) {}
-#endif
+      : ArrayBuilder(type, pool), data_(NULLPTR), raw_data_(NULLPTR) {}
 
   using ArrayBuilder::Advance;
 
@@ -210,7 +214,7 @@ class ARROW_EXPORT PrimitiveBuilder : public ArrayBuilder {
   /// indicates a valid (non-null) value
   /// \return Status
   Status Append(const value_type* values, int64_t length,
-                const uint8_t* valid_bytes = nullptr);
+                const uint8_t* valid_bytes = NULLPTR);
 
   /// \brief Append a sequence of elements in one shot
   /// \param[in] values a contiguous C array of values
@@ -233,7 +237,7 @@ class ARROW_EXPORT PrimitiveBuilder : public ArrayBuilder {
   /// \return Status
   Status Append(const std::vector<value_type>& values);
 
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
   Status Init(int64_t capacity) override;
 
   /// Increase the capacity of the builder to accommodate at least the indicated
@@ -426,9 +430,9 @@ class ARROW_EXPORT AdaptiveUIntBuilder : public internal::AdaptiveIntBuilderBase
   /// indicates a valid (non-null) value
   /// \return Status
   Status Append(const uint64_t* values, int64_t length,
-                const uint8_t* valid_bytes = nullptr);
+                const uint8_t* valid_bytes = NULLPTR);
 
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 
  protected:
   Status ExpandIntSize(uint8_t new_int_size);
@@ -488,9 +492,9 @@ class ARROW_EXPORT AdaptiveIntBuilder : public internal::AdaptiveIntBuilderBase 
   /// indicates a valid (non-null) value
   /// \return Status
   Status Append(const int64_t* values, int64_t length,
-                const uint8_t* valid_bytes = nullptr);
+                const uint8_t* valid_bytes = NULLPTR);
 
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 
  protected:
   Status ExpandIntSize(uint8_t new_int_size);
@@ -513,11 +517,6 @@ class ARROW_EXPORT BooleanBuilder : public ArrayBuilder {
   explicit BooleanBuilder(MemoryPool* pool ARROW_MEMORY_POOL_DEFAULT);
 
   explicit BooleanBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool);
-
-#ifndef ARROW_NO_DEPRECATED_API
-  /// \deprecated Since 0.6.0
-  explicit BooleanBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type);
-#endif
 
   using ArrayBuilder::Advance;
 
@@ -558,7 +557,7 @@ class ARROW_EXPORT BooleanBuilder : public ArrayBuilder {
   /// indicates a valid (non-null) value
   /// \return Status
   Status Append(const uint8_t* values, int64_t length,
-                const uint8_t* valid_bytes = nullptr);
+                const uint8_t* valid_bytes = NULLPTR);
 
   /// \brief Append a sequence of elements in one shot
   /// \param[in] values a contiguous C array of values
@@ -592,7 +591,7 @@ class ARROW_EXPORT BooleanBuilder : public ArrayBuilder {
   /// \return Status
   Status Append(const std::vector<bool>& values);
 
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
   Status Init(int64_t capacity) override;
 
   /// Increase the capacity of the builder to accommodate at least the indicated
@@ -625,18 +624,18 @@ class ARROW_EXPORT ListBuilder : public ArrayBuilder {
   /// Use this constructor to incrementally build the value array along with offsets and
   /// null bitmap.
   ListBuilder(MemoryPool* pool, std::unique_ptr<ArrayBuilder> value_builder,
-              const std::shared_ptr<DataType>& type = nullptr);
+              const std::shared_ptr<DataType>& type = NULLPTR);
 
   Status Init(int64_t elements) override;
   Status Resize(int64_t capacity) override;
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 
   /// \brief Vector append
   ///
   /// If passed, valid_bytes is of equal length to values, and any zero byte
   /// will be considered as a null for that slot
   Status Append(const int32_t* offsets, int64_t length,
-                const uint8_t* valid_bytes = nullptr);
+                const uint8_t* valid_bytes = NULLPTR);
 
   /// \brief Start a new variable-length list slot
   ///
@@ -667,11 +666,6 @@ class ARROW_EXPORT BinaryBuilder : public ArrayBuilder {
  public:
   explicit BinaryBuilder(MemoryPool* pool ARROW_MEMORY_POOL_DEFAULT);
 
-#ifndef ARROW_NO_DEPRECATED_API
-  /// \deprecated Since 0.6.0
-  BinaryBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type);
-#endif
-
   BinaryBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool);
 
   Status Append(const uint8_t* value, int32_t length);
@@ -688,7 +682,7 @@ class ARROW_EXPORT BinaryBuilder : public ArrayBuilder {
 
   Status Init(int64_t elements) override;
   Status Resize(int64_t capacity) override;
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 
   /// \return size of values buffer so far
   int64_t value_data_length() const { return value_data_builder_.length(); }
@@ -705,7 +699,6 @@ class ARROW_EXPORT BinaryBuilder : public ArrayBuilder {
   static constexpr int64_t kMaximumCapacity = std::numeric_limits<int32_t>::max() - 1;
 
   Status AppendNextOffset();
-  Status FinishInternal(std::shared_ptr<ArrayData>* out);
   void Reset();
 };
 
@@ -718,8 +711,6 @@ class ARROW_EXPORT StringBuilder : public BinaryBuilder {
 
   using BinaryBuilder::Append;
 
-  Status Finish(std::shared_ptr<Array>* out) override;
-
   Status Append(const std::vector<std::string>& values, uint8_t* null_bytes);
 };
 
@@ -728,11 +719,6 @@ class ARROW_EXPORT StringBuilder : public BinaryBuilder {
 
 class ARROW_EXPORT FixedSizeBinaryBuilder : public ArrayBuilder {
  public:
-#ifndef ARROW_NO_DEPRECATED_API
-  /// \deprecated Since 0.6.0
-  FixedSizeBinaryBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type);
-#endif
-
   FixedSizeBinaryBuilder(const std::shared_ptr<DataType>& type,
                          MemoryPool* pool ARROW_MEMORY_POOL_DEFAULT);
 
@@ -746,13 +732,13 @@ class ARROW_EXPORT FixedSizeBinaryBuilder : public ArrayBuilder {
   }
 
   Status Append(const uint8_t* data, int64_t length,
-                const uint8_t* valid_bytes = nullptr);
+                const uint8_t* valid_bytes = NULLPTR);
   Status Append(const std::string& value);
   Status AppendNull();
 
   Status Init(int64_t elements) override;
   Status Resize(int64_t capacity) override;
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 
   /// \return size of values buffer so far
   int64_t value_data_length() const { return byte_builder_.length(); }
@@ -767,22 +753,19 @@ class ARROW_EXPORT FixedSizeBinaryBuilder : public ArrayBuilder {
   BufferBuilder byte_builder_;
 };
 
-class ARROW_EXPORT DecimalBuilder : public FixedSizeBinaryBuilder {
+class ARROW_EXPORT Decimal128Builder : public FixedSizeBinaryBuilder {
  public:
-  explicit DecimalBuilder(const std::shared_ptr<DataType>& type,
-                          MemoryPool* pool ARROW_MEMORY_POOL_DEFAULT);
-
-#ifndef ARROW_NO_DEPRECATED_API
-  /// \deprecated Since 0.6.0
-  explicit DecimalBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type);
-#endif
+  explicit Decimal128Builder(const std::shared_ptr<DataType>& type,
+                             MemoryPool* pool ARROW_MEMORY_POOL_DEFAULT);
 
   using FixedSizeBinaryBuilder::Append;
 
   Status Append(const Decimal128& val);
 
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 };
+
+using DecimalBuilder = Decimal128Builder;
 
 // ----------------------------------------------------------------------
 // Struct
@@ -794,16 +777,10 @@ class ARROW_EXPORT DecimalBuilder : public FixedSizeBinaryBuilder {
 /// called to maintain data-structure consistency.
 class ARROW_EXPORT StructBuilder : public ArrayBuilder {
  public:
-#ifndef ARROW_NO_DEPRECATED_API
-  /// \deprecated Since 0.6.0
-  StructBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type,
-                std::vector<std::unique_ptr<ArrayBuilder>>&& field_builders);
-#endif
-
   StructBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool,
                 std::vector<std::unique_ptr<ArrayBuilder>>&& field_builders);
 
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 
   /// Null bitmap is of equal length to every child field, and any zero byte
   /// will be considered as a null for that field, but users must using app-
@@ -835,17 +812,6 @@ class ARROW_EXPORT StructBuilder : public ArrayBuilder {
 
 // ----------------------------------------------------------------------
 // Dictionary builder
-
-// Based on Apache Parquet-cpp's DictEncoder
-
-// Initially 1024 elements
-static constexpr int kInitialHashTableSize = 1 << 10;
-
-typedef int32_t hash_slot_t;
-static constexpr hash_slot_t kHashSlotEmpty = std::numeric_limits<int32_t>::max();
-
-// The maximum load factor for the hash table before resizing.
-static constexpr double kMaxHashTableLoad = 0.7;
 
 namespace internal {
 
@@ -888,11 +854,6 @@ class ARROW_EXPORT DictionaryBuilder : public ArrayBuilder {
 
   ~DictionaryBuilder() {}
 
-#ifndef ARROW_NO_DEPRECATED_API
-  /// \deprecated Since 0.6.0
-  explicit DictionaryBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type);
-#endif
-
   DictionaryBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool);
 
   template <typename T1 = T>
@@ -911,34 +872,59 @@ class ARROW_EXPORT DictionaryBuilder : public ArrayBuilder {
 
   Status Init(int64_t elements) override;
   Status Resize(int64_t capacity) override;
-  Status Finish(std::shared_ptr<Array>* out) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
 
  protected:
   Status DoubleTableSize();
   Scalar GetDictionaryValue(int64_t index);
-  int HashValue(const Scalar& value);
+  int64_t HashValue(const Scalar& value);
   bool SlotDifferent(hash_slot_t slot, const Scalar& value);
   Status AppendDictionary(const Scalar& value);
 
-  std::shared_ptr<PoolBuffer> hash_table_;
+  std::shared_ptr<Buffer> hash_table_;
   int32_t* hash_slots_;
 
   /// Size of the table. Must be a power of 2.
-  int hash_table_size_;
+  int64_t hash_table_size_;
 
   // Store hash_table_size_ - 1, so that j & mod_bitmask_ is equivalent to j %
   // hash_table_size_, but uses far fewer CPU cycles
-  int mod_bitmask_;
+  int64_t mod_bitmask_;
 
   typename TypeTraits<T>::BuilderType dict_builder_;
   AdaptiveIntBuilder values_builder_;
   int32_t byte_width_;
+
+  /// Size at which we decide to resize
+  int64_t hash_table_load_threshold_;
+};
+
+template <>
+class ARROW_EXPORT DictionaryBuilder<NullType> : public ArrayBuilder {
+ public:
+  ~DictionaryBuilder();
+
+  DictionaryBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool);
+  explicit DictionaryBuilder(MemoryPool* pool);
+
+  /// \brief Append a scalar null value
+  Status AppendNull();
+
+  /// \brief Append a whole dense array to the builder
+  Status AppendArray(const Array& array);
+
+  Status Init(int64_t elements) override;
+  Status Resize(int64_t capacity) override;
+  Status FinishInternal(std::shared_ptr<ArrayData>* out) override;
+
+ protected:
+  AdaptiveIntBuilder values_builder_;
 };
 
 class ARROW_EXPORT BinaryDictionaryBuilder : public DictionaryBuilder<BinaryType> {
  public:
-  using DictionaryBuilder::DictionaryBuilder;
   using DictionaryBuilder::Append;
+  using DictionaryBuilder::DictionaryBuilder;
 
   Status Append(const uint8_t* value, int32_t length) {
     return Append(internal::WrappedBinary(value, length));
@@ -958,8 +944,8 @@ class ARROW_EXPORT BinaryDictionaryBuilder : public DictionaryBuilder<BinaryType
 /// \brief Dictionary array builder with convenience methods for strings
 class ARROW_EXPORT StringDictionaryBuilder : public DictionaryBuilder<StringType> {
  public:
-  using DictionaryBuilder::DictionaryBuilder;
   using DictionaryBuilder::Append;
+  using DictionaryBuilder::DictionaryBuilder;
 
   Status Append(const uint8_t* value, int32_t length) {
     return Append(internal::WrappedBinary(value, length));
@@ -982,25 +968,6 @@ class ARROW_EXPORT StringDictionaryBuilder : public DictionaryBuilder<StringType
 Status ARROW_EXPORT MakeBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type,
                                 std::unique_ptr<ArrayBuilder>* out);
 
-Status ARROW_EXPORT MakeDictionaryBuilder(MemoryPool* pool,
-                                          const std::shared_ptr<DataType>& type,
-                                          std::shared_ptr<ArrayBuilder>* out);
-
-/// \brief Convert Array to encoded DictionaryArray form
-///
-/// \param[in] input The Array to be encoded
-/// \param[in] pool MemoryPool to allocate memory for the hash table
-/// \param[out] out Array encoded to DictionaryArray
-Status ARROW_EXPORT EncodeArrayToDictionary(const Array& input, MemoryPool* pool,
-                                            std::shared_ptr<Array>* out);
-
-/// \brief Convert a Column's data internally to DictionaryArray
-///
-/// \param[in] input The ChunkedArray to be encoded
-/// \param[in] pool MemoryPool to allocate memory for the hash table
-/// \param[out] out Column with data converted to DictionaryArray
-Status ARROW_EXPORT EncodeColumnToDictionary(const Column& input, MemoryPool* pool,
-                                             std::shared_ptr<Column>* out);
 }  // namespace arrow
 
 #endif  // ARROW_BUILDER_H_

@@ -42,7 +42,7 @@ sudo apt-get install cmake \
 On OS X, you can use [Homebrew][1]:
 
 ```shell
-brew install boost cmake
+brew update && brew bundle --file=c_glib/Brewfile
 ```
 
 If you are developing on Windows, see the [Windows developer guide][2].
@@ -68,6 +68,22 @@ Simple release build:
     make unittest
 
 Detailed unit test logs will be placed in the build directory under `build/test-logs`.
+
+On some Linux distributions, running the test suite might require setting an
+explicit locale. If you see any locale-related errors, try setting the
+environment variable (which requires the `locales` package or equivalent):
+
+```
+export LC_ALL="en_US.UTF-8"
+```
+
+### Statically linking to Arrow on Windows
+
+The Arrow headers on Windows static library builds (enabled by the CMake
+option `ARROW_BUILD_STATIC`) use the preprocessor macro `ARROW_STATIC` to
+suppress dllimport/dllexport marking of symbols. Projects that statically link
+against Arrow on Windows additionally need this definition. The Unix builds do
+not use the macro.
 
 ### Building/Running benchmarks
 
@@ -238,14 +254,21 @@ build failures by running the following checks before submitting your pull reque
     # before running it.
     make format # requires clang-format is installed
 
+We run our CI builds with more compiler warnings enabled for the Clang
+compiler. Please run CMake with
+
+`-DBUILD_WARNING_LEVEL=CHECKIN`
+
+to avoid failures due to compiler warnings.
+
 Note that the clang-tidy target may take a while to run.  You might consider
 running clang-tidy separately on the files you have added/changed before
 invoking the make target to reduce iteration time.  Also, it might generate warnings
-that aren't valid.  To avoid these you can use add a line comment `// NOLINT`. If
+that aren't valid.  To avoid these you can add a line comment `// NOLINT`. If
 NOLINT doesn't suppress the warnings, you add the file in question to
 the .clang-tidy-ignore file.  This will allow `make check-clang-tidy` to pass in
-travis-CI (but still surface the potential warnings in `make clang-tidy`).   Ideally,
-both of these options would be used rarely.  Current known uses-cases whent hey are required:
+travis-CI (but still surface the potential warnings in `make clang-tidy`). Ideally,
+both of these options would be used rarely. Current known uses-cases when they are required:
 
 *  Parameterized tests in google test.
 

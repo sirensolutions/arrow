@@ -57,8 +57,8 @@ func PrintColumnValue(column *arrow.Array, i int64) {
 func PrintRecordBatch(recordBatch *arrow.RecordBatch) {
 	nColumns := recordBatch.GetNColumns()
 	for i := uint32(0); i < nColumns; i++ {
-		column := recordBatch.GetColumn(i)
-		columnName := recordBatch.GetColumnName(i)
+		column := recordBatch.GetColumn(int32(i))
+		columnName := recordBatch.GetColumnName(int32(i))
 		fmt.Printf("  %s: [", columnName)
 		nRows := recordBatch.GetNRows()
 		for j := int64(0); j < nRows; j++ {
@@ -87,9 +87,9 @@ func main() {
 		log.Fatalf("Failed to parse data: %v", err)
 	}
 	for i := 0; true; i++ {
-		recordBatch, err := reader.ReadNextRecordBatch()
+		recordBatch, err := reader.ReadNext()
 		if err != nil {
-			log.Fatalf("Failed to read next record batch: %v", err)
+			log.Fatalf("Failed to read the next record batch: %v", err)
 		}
 		if recordBatch == nil {
 			break

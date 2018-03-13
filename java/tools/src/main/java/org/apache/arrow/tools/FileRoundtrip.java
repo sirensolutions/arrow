@@ -22,8 +22,8 @@ package org.apache.arrow.tools;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.file.ArrowFileReader;
-import org.apache.arrow.vector.file.ArrowFileWriter;
+import org.apache.arrow.vector.ipc.ArrowFileReader;
+import org.apache.arrow.vector.ipc.ArrowFileWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -79,8 +79,9 @@ public class FileRoundtrip {
 
       File inFile = validateFile("input", inFileName);
       File outFile = validateFile("output", outFileName);
-      BufferAllocator allocator = new RootAllocator(Integer.MAX_VALUE); // TODO: close
-      try (FileInputStream fileInputStream = new FileInputStream(inFile);
+
+      try (BufferAllocator allocator = new RootAllocator(Integer.MAX_VALUE);
+           FileInputStream fileInputStream = new FileInputStream(inFile);
            ArrowFileReader arrowReader = new ArrowFileReader(fileInputStream.getChannel(),
                allocator)) {
 

@@ -36,6 +36,7 @@ which python
 
 conda install -y -q pip \
       nomkl \
+      cloudpickle \
       numpy=1.13.1 \
       pandas \
       cython \
@@ -44,6 +45,12 @@ conda install -y -q pip \
       numpydoc \
       sphinx \
       sphinx_bootstrap_theme
+
+if [ "$PYTHON_VERSION" != "2.7" ] || [ $TRAVIS_OS_NAME != "osx" ]; then
+  # Install pytorch for torch tensor conversion tests
+  # PyTorch seems to be broken on Python 2.7 on macOS so we skip it
+  conda install -y -q pytorch torchvision -c soumith
+fi
 
 # Build C++ libraries
 pushd $ARROW_CPP_BUILD_DIR
@@ -56,6 +63,7 @@ cmake -GNinja \
       -DARROW_BUILD_UTILITIES=off \
       -DARROW_PLASMA=on \
       -DARROW_PYTHON=on \
+      -DCMAKE_BUILD_TYPE=$ARROW_BUILD_TYPE \
       -DCMAKE_INSTALL_PREFIX=$ARROW_HOME \
       $ARROW_CPP_DIR
 
@@ -66,6 +74,12 @@ popd
 
 # Other stuff pip install
 pushd $ARROW_PYTHON_DIR
+
+if [ "$PYTHON_VERSION" == "2.7" ]; then
+  pip install futures
+fi
+
+export PYARROW_BUILD_TYPE=$ARROW_BUILD_TYPE
 
 pip install -r requirements.txt
 python setup.py build_ext --with-parquet --with-plasma \

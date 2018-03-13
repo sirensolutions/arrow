@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 
 #include "arrow/buffer.h"
 #include "arrow/status.h"
@@ -78,7 +79,7 @@ Status BufferOutputStream::Tell(int64_t* position) const {
   return Status::OK();
 }
 
-Status BufferOutputStream::Write(const uint8_t* data, int64_t nbytes) {
+Status BufferOutputStream::Write(const void* data, int64_t nbytes) {
   if (ARROW_PREDICT_FALSE(!is_open_)) {
     return Status::IOError("OutputStream is closed");
   }
@@ -115,7 +116,7 @@ Status MockOutputStream::Tell(int64_t* position) const {
   return Status::OK();
 }
 
-Status MockOutputStream::Write(const uint8_t* data, int64_t nbytes) {
+Status MockOutputStream::Write(const void* data, int64_t nbytes) {
   extent_bytes_written_ += nbytes;
   return Status::OK();
 }
@@ -127,67 +128,108 @@ static constexpr int kMemcopyDefaultNumThreads = 1;
 static constexpr int64_t kMemcopyDefaultBlocksize = 64;
 static constexpr int64_t kMemcopyDefaultThreshold = 1024 * 1024;
 
-/// Input buffer must be mutable, will abort if not
-FixedSizeBufferWriter::FixedSizeBufferWriter(const std::shared_ptr<Buffer>& buffer)
-    : memcopy_num_threads_(kMemcopyDefaultNumThreads),
-      memcopy_blocksize_(kMemcopyDefaultBlocksize),
-      memcopy_threshold_(kMemcopyDefaultThreshold) {
-  DCHECK(buffer) << "Buffer was nullptr";
-  buffer_ = buffer;
-  DCHECK(buffer->is_mutable()) << "Must pass mutable buffer";
-  mutable_data_ = buffer->mutable_data();
-  size_ = buffer->size();
-  position_ = 0;
-}
+class FixedSizeBufferWriter::FixedSizeBufferWriterImpl {
+ public:
+  /// Input buffer must be mutable, will abort if not
 
-FixedSizeBufferWriter::~FixedSizeBufferWriter() {}
-
-Status FixedSizeBufferWriter::Close() {
-  // no-op
-  return Status::OK();
-}
-
-Status FixedSizeBufferWriter::Seek(int64_t position) {
-  if (position < 0 || position >= size_) {
-    return Status::IOError("position out of bounds");
+  /// Input buffer must be mutable, will abort if not
+  explicit FixedSizeBufferWriterImpl(const std::shared_ptr<Buffer>& buffer)
+      : memcopy_num_threads_(kMemcopyDefaultNumThreads),
+        memcopy_blocksize_(kMemcopyDefaultBlocksize),
+        memcopy_threshold_(kMemcopyDefaultThreshold) {
+    buffer_ = buffer;
+    DCHECK(buffer->is_mutable()) << "Must pass mutable buffer";
+    mutable_data_ = buffer->mutable_data();
+    size_ = buffer->size();
+    position_ = 0;
   }
-  position_ = position;
-  return Status::OK();
-}
+
+  Status Close() {
+    // No-op
+    return Status::OK();
+  }
+
+  Status Seek(int64_t position) {
+    if (position < 0 || position >= size_) {
+      return Status::IOError("position out of bounds");
+    }
+    position_ = position;
+    return Status::OK();
+  }
+
+  Status Tell(int64_t* position) {
+    *position = position_;
+    return Status::OK();
+  }
+
+  Status Write(const void* data, int64_t nbytes) {
+    if (nbytes > memcopy_threshold_ && memcopy_num_threads_ > 1) {
+      internal::parallel_memcopy(mutable_data_ + position_,
+                                 reinterpret_cast<const uint8_t*>(data), nbytes,
+                                 memcopy_blocksize_, memcopy_num_threads_);
+    } else {
+      memcpy(mutable_data_ + position_, data, nbytes);
+    }
+    position_ += nbytes;
+    return Status::OK();
+  }
+
+  Status WriteAt(int64_t position, const void* data, int64_t nbytes) {
+    std::lock_guard<std::mutex> guard(lock_);
+    RETURN_NOT_OK(Seek(position));
+    return Write(data, nbytes);
+  }
+
+  void set_memcopy_threads(int num_threads) { memcopy_num_threads_ = num_threads; }
+
+  void set_memcopy_blocksize(int64_t blocksize) { memcopy_blocksize_ = blocksize; }
+
+  void set_memcopy_threshold(int64_t threshold) { memcopy_threshold_ = threshold; }
+
+ private:
+  std::mutex lock_;
+  std::shared_ptr<Buffer> buffer_;
+  uint8_t* mutable_data_;
+  int64_t size_;
+  int64_t position_;
+
+  int memcopy_num_threads_;
+  int64_t memcopy_blocksize_;
+  int64_t memcopy_threshold_;
+};
+
+FixedSizeBufferWriter::FixedSizeBufferWriter(const std::shared_ptr<Buffer>& buffer)
+    : impl_(new FixedSizeBufferWriterImpl(buffer)) {}
+
+FixedSizeBufferWriter::~FixedSizeBufferWriter() = default;
+
+Status FixedSizeBufferWriter::Close() { return impl_->Close(); }
+
+Status FixedSizeBufferWriter::Seek(int64_t position) { return impl_->Seek(position); }
 
 Status FixedSizeBufferWriter::Tell(int64_t* position) const {
-  *position = position_;
-  return Status::OK();
+  return impl_->Tell(position);
 }
 
-Status FixedSizeBufferWriter::Write(const uint8_t* data, int64_t nbytes) {
-  if (nbytes > memcopy_threshold_ && memcopy_num_threads_ > 1) {
-    internal::parallel_memcopy(mutable_data_ + position_, data, nbytes,
-                               memcopy_blocksize_, memcopy_num_threads_);
-  } else {
-    memcpy(mutable_data_ + position_, data, nbytes);
-  }
-  position_ += nbytes;
-  return Status::OK();
+Status FixedSizeBufferWriter::Write(const void* data, int64_t nbytes) {
+  return impl_->Write(data, nbytes);
 }
 
-Status FixedSizeBufferWriter::WriteAt(int64_t position, const uint8_t* data,
+Status FixedSizeBufferWriter::WriteAt(int64_t position, const void* data,
                                       int64_t nbytes) {
-  std::lock_guard<std::mutex> guard(lock_);
-  RETURN_NOT_OK(Seek(position));
-  return Write(data, nbytes);
+  return impl_->WriteAt(position, data, nbytes);
 }
 
 void FixedSizeBufferWriter::set_memcopy_threads(int num_threads) {
-  memcopy_num_threads_ = num_threads;
+  impl_->set_memcopy_threads(num_threads);
 }
 
 void FixedSizeBufferWriter::set_memcopy_blocksize(int64_t blocksize) {
-  memcopy_blocksize_ = blocksize;
+  impl_->set_memcopy_blocksize(blocksize);
 }
 
 void FixedSizeBufferWriter::set_memcopy_threshold(int64_t threshold) {
-  memcopy_threshold_ = threshold;
+  impl_->set_memcopy_threshold(threshold);
 }
 
 // ----------------------------------------------------------------------
@@ -199,7 +241,8 @@ BufferReader::BufferReader(const std::shared_ptr<Buffer>& buffer)
 BufferReader::BufferReader(const uint8_t* data, int64_t size)
     : buffer_(nullptr), data_(data), size_(size), position_(0) {}
 
-BufferReader::~BufferReader() {}
+BufferReader::BufferReader(const Buffer& buffer)
+    : BufferReader(buffer.data(), buffer.size()) {}
 
 Status BufferReader::Close() {
   // no-op
@@ -213,7 +256,7 @@ Status BufferReader::Tell(int64_t* position) const {
 
 bool BufferReader::supports_zero_copy() const { return true; }
 
-Status BufferReader::Read(int64_t nbytes, int64_t* bytes_read, uint8_t* buffer) {
+Status BufferReader::Read(int64_t nbytes, int64_t* bytes_read, void* buffer) {
   memcpy(buffer, data_ + position_, nbytes);
   *bytes_read = std::min(nbytes, size_ - position_);
   position_ += *bytes_read;
@@ -231,6 +274,16 @@ Status BufferReader::Read(int64_t nbytes, std::shared_ptr<Buffer>* out) {
 
   position_ += size;
   return Status::OK();
+}
+
+Status BufferReader::ReadAt(int64_t position, int64_t nbytes, int64_t* bytes_read,
+                            void* out) {
+  return RandomAccessFile::ReadAt(position, nbytes, bytes_read, out);
+}
+
+Status BufferReader::ReadAt(int64_t position, int64_t nbytes,
+                            std::shared_ptr<Buffer>* out) {
+  return RandomAccessFile::ReadAt(position, nbytes, out);
 }
 
 Status BufferReader::GetSize(int64_t* size) {

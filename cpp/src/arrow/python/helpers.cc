@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include "arrow/python/helpers.h"
+#include <sstream>
+
 #include "arrow/python/common.h"
+#include "arrow/python/helpers.h"
 #include "arrow/util/decimal.h"
 #include "arrow/util/logging.h"
 
@@ -27,8 +29,7 @@ namespace py {
 
 #define GET_PRIMITIVE_TYPE(NAME, FACTORY) \
   case Type::NAME:                        \
-    return FACTORY();                     \
-    break;
+    return FACTORY()
 
 std::shared_ptr<DataType> GetPrimitiveType(Type::type type) {
   switch (type) {
@@ -54,6 +55,8 @@ std::shared_ptr<DataType> GetPrimitiveType(Type::type type) {
       return nullptr;
   }
 }
+
+namespace internal {
 
 Status ImportModule(const std::string& module_name, OwnedRef* ref) {
   PyObject* module = PyImport_ImportModule(module_name.c_str());
@@ -90,26 +93,38 @@ Status PythonDecimalToString(PyObject* python_decimal, std::string* out) {
   return Status::OK();
 }
 
-Status InferDecimalPrecisionAndScale(PyObject* python_decimal, int* precision,
-                                     int* scale) {
-  // Call Python's str(decimal_object)
-  OwnedRef str_obj(PyObject_Str(python_decimal));
+Status InferDecimalPrecisionAndScale(PyObject* python_decimal, int32_t* precision,
+                                     int32_t* scale) {
+  DCHECK_NE(python_decimal, NULLPTR);
+  DCHECK_NE(precision, NULLPTR);
+  DCHECK_NE(scale, NULLPTR);
+
+  OwnedRef as_tuple(PyObject_CallMethod(python_decimal, "as_tuple", "()"));
   RETURN_IF_PYERROR();
-  PyObjectStringify str(str_obj.obj());
+  DCHECK(PyTuple_Check(as_tuple.obj()));
 
-  const char* bytes = str.bytes;
-  DCHECK_NE(bytes, nullptr);
+  OwnedRef digits(PyObject_GetAttrString(as_tuple.obj(), "digits"));
+  RETURN_IF_PYERROR();
+  DCHECK(PyTuple_Check(digits.obj()));
 
-  auto size = str.size;
+  const auto num_digits = static_cast<int32_t>(PyTuple_Size(digits.obj()));
+  RETURN_IF_PYERROR();
 
-  std::string c_string(bytes, size);
-  return Decimal128::FromString(c_string, nullptr, precision, scale);
+  OwnedRef py_exponent(PyObject_GetAttrString(as_tuple.obj(), "exponent"));
+  RETURN_IF_PYERROR();
+  DCHECK(IsPyInteger(py_exponent.obj()));
+
+  const auto exponent = static_cast<int32_t>(PyLong_AsLong(py_exponent.obj()));
+  RETURN_IF_PYERROR();
+
+  *precision = num_digits;
+  *scale = -exponent;
+  return Status::OK();
 }
 
-Status DecimalFromString(PyObject* decimal_constructor, const std::string& decimal_string,
-                         PyObject** out) {
+PyObject* DecimalFromString(PyObject* decimal_constructor,
+                            const std::string& decimal_string) {
   DCHECK_NE(decimal_constructor, nullptr);
-  DCHECK_NE(out, nullptr);
 
   auto string_size = decimal_string.size();
   DCHECK_GT(string_size, 0);
@@ -117,11 +132,50 @@ Status DecimalFromString(PyObject* decimal_constructor, const std::string& decim
   auto string_bytes = decimal_string.c_str();
   DCHECK_NE(string_bytes, nullptr);
 
-  *out = PyObject_CallFunction(decimal_constructor, const_cast<char*>("s#"), string_bytes,
+  return PyObject_CallFunction(decimal_constructor, const_cast<char*>("s#"), string_bytes,
                                string_size);
-  RETURN_IF_PYERROR();
+}
+
+Status DecimalFromPythonDecimal(PyObject* python_decimal, const DecimalType& arrow_type,
+                                Decimal128* out) {
+  DCHECK_NE(python_decimal, NULLPTR);
+  DCHECK_NE(out, NULLPTR);
+
+  std::string string;
+  RETURN_NOT_OK(PythonDecimalToString(python_decimal, &string));
+
+  int32_t inferred_precision;
+  int32_t inferred_scale;
+
+  RETURN_NOT_OK(
+      Decimal128::FromString(string, out, &inferred_precision, &inferred_scale));
+
+  const int32_t precision = arrow_type.precision();
+  const int32_t scale = arrow_type.scale();
+
+  if (ARROW_PREDICT_FALSE(inferred_precision > precision)) {
+    std::stringstream buf;
+    buf << "Decimal type with precision " << inferred_precision
+        << " does not fit into precision inferred from first array element: "
+        << precision;
+    return Status::Invalid(buf.str());
+  }
+
+  if (scale != inferred_scale) {
+    DCHECK_NE(out, NULLPTR);
+    RETURN_NOT_OK(out->Rescale(inferred_scale, scale, out));
+  }
   return Status::OK();
 }
 
+bool IsPyInteger(PyObject* obj) {
+#if PYARROW_IS_PY2
+  return PyLong_Check(obj) || PyInt_Check(obj);
+#else
+  return PyLong_Check(obj);
+#endif
+}
+
+}  // namespace internal
 }  // namespace py
 }  // namespace arrow

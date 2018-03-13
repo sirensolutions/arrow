@@ -49,14 +49,14 @@ class ARROW_EXPORT CudaBuffer : public Buffer {
   /// \brief Copy memory from GPU device to CPU host
   /// \param[out] out a pre-allocated output buffer
   /// \return Status
-  Status CopyToHost(const int64_t position, const int64_t nbytes, uint8_t* out) const;
+  Status CopyToHost(const int64_t position, const int64_t nbytes, void* out) const;
 
   /// \brief Copy memory to device at position
   /// \param[in] position start position to copy bytes
   /// \param[in] data the host data to copy
   /// \param[in] nbytes number of bytes to copy
   /// \return Status
-  Status CopyFromHost(const int64_t position, const uint8_t* data, int64_t nbytes);
+  Status CopyFromHost(const int64_t position, const void* data, int64_t nbytes);
 
   /// \brief Expose this device buffer as IPC memory which can be used in other processes
   /// \param[out] handle the exported IPC handle
@@ -130,7 +130,7 @@ class ARROW_EXPORT CudaBufferReader : public io::BufferReader {
   /// \param[in] nbytes number of bytes to read
   /// \param[out] bytes_read actual number of bytes read
   /// \param[out] buffer pre-allocated memory to write into
-  Status Read(int64_t nbytes, int64_t* bytes_read, uint8_t* buffer) override;
+  Status Read(int64_t nbytes, int64_t* bytes_read, void* buffer) override;
 
   /// \brief Zero-copy read from device memory
   /// \param[in] nbytes number of bytes to read
@@ -145,7 +145,7 @@ class ARROW_EXPORT CudaBufferReader : public io::BufferReader {
 
 /// \class CudaBufferWriter
 /// \brief File interface for writing to CUDA buffers, with optional buffering
-class ARROW_EXPORT CudaBufferWriter : public io::FixedSizeBufferWriter {
+class ARROW_EXPORT CudaBufferWriter : public io::WriteableFile {
  public:
   explicit CudaBufferWriter(const std::shared_ptr<CudaBuffer>& buffer);
   ~CudaBufferWriter();
@@ -156,9 +156,13 @@ class ARROW_EXPORT CudaBufferWriter : public io::FixedSizeBufferWriter {
   /// \brief Flush buffered bytes to GPU
   Status Flush() override;
 
-  // Seek requires flushing if any bytes are buffered
   Status Seek(int64_t position) override;
-  Status Write(const uint8_t* data, int64_t nbytes) override;
+
+  Status Write(const void* data, int64_t nbytes) override;
+
+  Status WriteAt(int64_t position, const void* data, int64_t nbytes) override;
+
+  Status Tell(int64_t* position) const override;
 
   /// \brief Set CPU buffer size to limit calls to cudaMemcpy
   /// \param[in] buffer_size the size of CPU buffer to allocate
@@ -168,19 +172,14 @@ class ARROW_EXPORT CudaBufferWriter : public io::FixedSizeBufferWriter {
   Status SetBufferSize(const int64_t buffer_size);
 
   /// \brief Returns size of host (CPU) buffer, 0 for unbuffered
-  int64_t buffer_size() const { return buffer_size_; }
+  int64_t buffer_size() const;
 
   /// \brief Returns number of bytes buffered on host
-  int64_t num_bytes_buffered() const { return buffer_position_; }
+  int64_t num_bytes_buffered() const;
 
  private:
-  std::shared_ptr<CudaContext> context_;
-
-  // Pinned host buffer for buffering writes on CPU before calling cudaMalloc
-  int64_t buffer_size_;
-  int64_t buffer_position_;
-  std::shared_ptr<CudaHostBuffer> host_buffer_;
-  uint8_t* host_buffer_data_;
+  class CudaBufferWriterImpl;
+  std::unique_ptr<CudaBufferWriterImpl> impl_;
 };
 
 /// \brief Allocate CUDA-accessible memory on CPU host

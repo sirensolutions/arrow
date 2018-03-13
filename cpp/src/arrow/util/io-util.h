@@ -40,7 +40,7 @@ class StdoutStream : public OutputStream {
     return Status::OK();
   }
 
-  Status Write(const uint8_t* data, int64_t nbytes) override {
+  Status Write(const void* data, int64_t nbytes) override {
     pos_ += nbytes;
     std::cout.write(reinterpret_cast<const char*>(data), nbytes);
     return Status::OK();
@@ -63,7 +63,7 @@ class StdinStream : public InputStream {
     return Status::OK();
   }
 
-  Status Read(int64_t nbytes, int64_t* bytes_read, uint8_t* out) override {
+  Status Read(int64_t nbytes, int64_t* bytes_read, void* out) override {
     std::cin.read(reinterpret_cast<char*>(out), nbytes);
     if (std::cin) {
       *bytes_read = nbytes;
@@ -75,7 +75,7 @@ class StdinStream : public InputStream {
   }
 
   Status Read(int64_t nbytes, std::shared_ptr<Buffer>* out) override {
-    auto buffer = std::make_shared<PoolBuffer>(nullptr);
+    auto buffer = std::make_shared<PoolBuffer>(NULLPTR);
     RETURN_NOT_OK(buffer->Resize(nbytes));
     int64_t bytes_read;
     RETURN_NOT_OK(Read(nbytes, &bytes_read, buffer->mutable_data()));

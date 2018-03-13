@@ -19,15 +19,24 @@ from __future__ import division
 
 import pytest
 
-from collections import namedtuple
+from collections import namedtuple, OrderedDict, defaultdict
+import datetime
 import string
 import sys
+import pickle
 
 import pyarrow as pa
 import numpy as np
 
 
 def assert_equal(obj1, obj2):
+    try:
+        import torch
+        if torch.is_tensor(obj1) and torch.is_tensor(obj2):
+            assert torch.equal(obj1, obj2)
+            return
+    except ImportError:
+        pass
     module_numpy = (type(obj1).__module__ == np.__name__ or
                     type(obj2).__module__ == np.__name__)
     if module_numpy:
@@ -50,6 +59,14 @@ def assert_equal(obj1, obj2):
                                                                   .format(
                                                                       obj1,
                                                                       obj2))
+        try:
+            # Workaround to make comparison of OrderedDicts work on Python 2.7
+            if obj1 == obj2:
+                return
+        except Exception:
+            pass
+        if obj1.__dict__ == {}:
+            print("WARNING: Empty dict in ", obj1)
         for key in obj1.__dict__.keys():
             if key not in special_keys:
                 assert_equal(obj1.__dict__[key], obj2.__dict__[key])
@@ -92,7 +109,7 @@ PRIMITIVE_OBJECTS = [
     {True: "hello", False: "world"}, {"hello": "world", 1: 42, 2.5: 45},
     {"hello": set([2, 3]), "world": set([42.0]), "this": None},
     np.int8(3), np.int32(4), np.int64(5),
-    np.uint8(3), np.uint32(4), np.uint64(5), np.float32(1.9),
+    np.uint8(3), np.uint32(4), np.uint64(5), np.float16(1.9), np.float32(1.9),
     np.float64(1.9), np.zeros([100, 100]),
     np.random.normal(size=[100, 100]), np.array(["hi", 3]),
     np.array(["hi", 3], dtype=object),
@@ -168,50 +185,26 @@ NamedTupleExample = namedtuple("Example",
 
 CUSTOM_OBJECTS = [Exception("Test object."), CustomError(), Point(11, y=22),
                   Foo(), Bar(), Baz(), Qux(), SubQux(), SubQuxPickle(),
-                  NamedTupleExample(1, 1.0, "hi", np.zeros([3, 5]), [1, 2, 3])]
+                  NamedTupleExample(1, 1.0, "hi", np.zeros([3, 5]), [1, 2, 3]),
+                  OrderedDict([("hello", 1), ("world", 2)])]
 
 
 def make_serialization_context():
 
-    def array_custom_serializer(obj):
-        return obj.tolist(), obj.dtype.str
+    context = pa._default_serialization_context
 
-    def array_custom_deserializer(serialized_obj):
-        return np.array(serialized_obj[0], dtype=np.dtype(serialized_obj[1]))
-
-    context = pa.SerializationContext()
-
-    # This is for numpy arrays of "object" only; primitive types are handled
-    # efficiently with Arrow's Tensor facilities (see python_to_arrow.cc)
-    context.register_type(np.ndarray, 20 * b"\x00",
-                          custom_serializer=array_custom_serializer,
-                          custom_deserializer=array_custom_deserializer)
-
-    context.register_type(Foo, 20 * b"\x01")
-    context.register_type(Bar, 20 * b"\x02")
-    context.register_type(Baz, 20 * b"\x03")
-    context.register_type(Qux, 20 * b"\x04")
-    context.register_type(SubQux, 20 * b"\x05")
-    context.register_type(SubQuxPickle, 20 * b"\x05", pickle=True)
-    context.register_type(Exception, 20 * b"\x06")
-    context.register_type(CustomError, 20 * b"\x07")
-    context.register_type(Point, 20 * b"\x08")
-    context.register_type(NamedTupleExample, 20 * b"\x09")
-
-    # TODO(pcm): This is currently a workaround until arrow supports
-    # arbitrary precision integers. This is only called on long integers,
-    # see the associated case in the append method in python_to_arrow.cc
-    context.register_type(int, 20 * b"\x10", pickle=False,
-                          custom_serializer=lambda obj: str(obj),
-                          custom_deserializer=(
-                              lambda serialized_obj: int(serialized_obj)))
-
-    if (sys.version_info < (3, 0)):
-        deserializer = (
-            lambda serialized_obj: long(serialized_obj))  # noqa: E501,F821
-        context.register_type(long, 20 * b"\x11", pickle=False,  # noqa: E501,F821
-                              custom_serializer=lambda obj: str(obj),
-                              custom_deserializer=deserializer)
+    context.register_type(Foo, "Foo")
+    context.register_type(Bar, "Bar")
+    context.register_type(Baz, "Baz")
+    context.register_type(Qux, "Quz")
+    context.register_type(SubQux, "SubQux")
+    context.register_type(SubQuxPickle, "SubQuxPickle",
+                          custom_serializer=pickle.dumps,
+                          custom_deserializer=pickle.loads)
+    context.register_type(Exception, "Exception")
+    context.register_type(CustomError, "CustomError")
+    context.register_type(Point, "Point")
+    context.register_type(NamedTupleExample, "NamedTupleExample")
 
     return context
 
@@ -219,12 +212,23 @@ def make_serialization_context():
 serialization_context = make_serialization_context()
 
 
-def serialization_roundtrip(value, f):
+def serialization_roundtrip(value, f, ctx=serialization_context):
     f.seek(0)
-    pa.serialize_to(value, f, serialization_context)
+    pa.serialize_to(value, f, ctx)
     f.seek(0)
-    result = pa.deserialize_from(f, None, serialization_context)
+    result = pa.deserialize_from(f, None, ctx)
     assert_equal(value, result)
+
+    _check_component_roundtrip(value)
+
+
+def _check_component_roundtrip(value):
+    # Test to/from components
+    serialized = pa.serialize(value)
+    components = serialized.to_components()
+    from_comp = pa.SerializedPyObject.from_components(components)
+    recons = from_comp.deserialize()
+    assert_equal(value, recons)
 
 
 @pytest.yield_fixture(scope='session')
@@ -245,6 +249,7 @@ def test_primitive_serialization(large_memory_map):
     with pa.memory_map(large_memory_map, mode="r+") as mmap:
         for obj in PRIMITIVE_OBJECTS:
             serialization_roundtrip(obj, mmap)
+            serialization_roundtrip(obj, mmap, pa.pandas_serialization_context)
 
 
 def test_serialize_to_buffer():
@@ -267,11 +272,59 @@ def test_custom_serialization(large_memory_map):
             serialization_roundtrip(obj, mmap)
 
 
+def test_default_dict_serialization(large_memory_map):
+    pytest.importorskip("cloudpickle")
+    with pa.memory_map(large_memory_map, mode="r+") as mmap:
+        obj = defaultdict(lambda: 0, [("hello", 1), ("world", 2)])
+        serialization_roundtrip(obj, mmap)
+
+
 def test_numpy_serialization(large_memory_map):
     with pa.memory_map(large_memory_map, mode="r+") as mmap:
-        for t in ["int8", "uint8", "int16", "uint16",
-                  "int32", "uint32", "float32", "float64"]:
+        for t in ["bool", "int8", "uint8", "int16", "uint16", "int32",
+                  "uint32", "float16", "float32", "float64"]:
             obj = np.random.randint(0, 10, size=(100, 100)).astype(t)
+            serialization_roundtrip(obj, mmap)
+
+
+def test_datetime_serialization(large_memory_map):
+    data = [
+        #  Principia Mathematica published
+        datetime.datetime(year=1687, month=7, day=5),
+
+        # Some random date
+        datetime.datetime(year=1911, month=6, day=3, hour=4,
+                          minute=55, second=44),
+        # End of WWI
+        datetime.datetime(year=1918, month=11, day=11),
+
+        # Beginning of UNIX time
+        datetime.datetime(year=1970, month=1, day=1),
+
+        # The Berlin wall falls
+        datetime.datetime(year=1989, month=11, day=9),
+
+        # Another random date
+        datetime.datetime(year=2011, month=6, day=3, hour=4,
+                          minute=0, second=3),
+        # Another random date
+        datetime.datetime(year=1970, month=1, day=3, hour=4,
+                          minute=0, second=0)
+    ]
+    with pa.memory_map(large_memory_map, mode="r+") as mmap:
+        for d in data:
+            serialization_roundtrip(d, mmap)
+
+
+def test_torch_serialization(large_memory_map):
+    pytest.importorskip("torch")
+    import torch
+    with pa.memory_map(large_memory_map, mode="r+") as mmap:
+        # These are the only types that are supported for the
+        # PyTorch to NumPy conversion
+        for t in ["float32", "float64",
+                  "uint8", "int16", "int32", "int64"]:
+            obj = torch.from_numpy(np.random.randn(1000).astype(t))
             serialization_roundtrip(obj, mmap)
 
 
@@ -286,6 +339,47 @@ def test_numpy_immutable(large_memory_map):
             result[0] = 1.0
 
 
+# see https://issues.apache.org/jira/browse/ARROW-1695
+def test_serialization_callback_numpy():
+
+    class DummyClass(object):
+        pass
+
+    def serialize_dummy_class(obj):
+        x = np.zeros(4)
+        return x
+
+    def deserialize_dummy_class(serialized_obj):
+        return serialized_obj
+
+    pa._default_serialization_context.register_type(
+        DummyClass, "DummyClass",
+        custom_serializer=serialize_dummy_class,
+        custom_deserializer=deserialize_dummy_class)
+
+    pa.serialize(DummyClass())
+
+
+def test_buffer_serialization():
+
+    class BufferClass(object):
+        pass
+
+    def serialize_buffer_class(obj):
+        return pa.frombuffer(b"hello")
+
+    def deserialize_buffer_class(serialized_obj):
+        return serialized_obj
+
+    pa._default_serialization_context.register_type(
+        BufferClass, "BufferClass",
+        custom_serializer=serialize_buffer_class,
+        custom_deserializer=deserialize_buffer_class)
+
+    b = pa.serialize(BufferClass()).to_buffer()
+    assert pa.deserialize(b).to_pybytes() == b"hello"
+
+
 @pytest.mark.skip(reason="extensive memory requirements")
 def test_arrow_limits(self):
     def huge_memory_map(temp_dir):
@@ -295,24 +389,24 @@ def test_arrow_limits(self):
         # Test that objects that are too large for Arrow throw a Python
         # exception. These tests give out of memory errors on Travis and need
         # to be run on a machine with lots of RAM.
-        l = 2 ** 29 * [1.0]
-        serialization_roundtrip(l, mmap)
-        del l
-        l = 2 ** 29 * ["s"]
-        serialization_roundtrip(l, mmap)
-        del l
-        l = 2 ** 29 * [["1"], 2, 3, [{"s": 4}]]
-        serialization_roundtrip(l, mmap)
-        del l
-        l = 2 ** 29 * [{"s": 1}] + 2 ** 29 * [1.0]
-        serialization_roundtrip(l, mmap)
-        del l
-        l = np.zeros(2 ** 25)
-        serialization_roundtrip(l, mmap)
-        del l
-        l = [np.zeros(2 ** 18) for _ in range(2 ** 7)]
-        serialization_roundtrip(l, mmap)
-        del l
+        x = 2 ** 29 * [1.0]
+        serialization_roundtrip(x, mmap)
+        del x
+        x = 2 ** 29 * ["s"]
+        serialization_roundtrip(x, mmap)
+        del x
+        x = 2 ** 29 * [["1"], 2, 3, [{"s": 4}]]
+        serialization_roundtrip(x, mmap)
+        del x
+        x = 2 ** 29 * [{"s": 1}] + 2 ** 29 * [1.0]
+        serialization_roundtrip(x, mmap)
+        del x
+        x = np.zeros(2 ** 25)
+        serialization_roundtrip(x, mmap)
+        del x
+        x = [np.zeros(2 ** 18) for _ in range(2 ** 7)]
+        serialization_roundtrip(x, mmap)
+        del x
 
 
 def test_serialization_callback_error():
@@ -337,3 +431,91 @@ def test_serialization_callback_error():
     with pytest.raises(pa.DeserializationCallbackError) as err:
         serialized_object.deserialize(deserialization_context)
     assert err.value.type_id == 20*b"\x00"
+
+
+def test_fallback_to_subclasses():
+
+    class SubFoo(Foo):
+        def __init__(self):
+            Foo.__init__(self)
+
+    # should be able to serialize/deserialize an instance
+    # if a base class has been registered
+    serialization_context = pa.SerializationContext()
+    serialization_context.register_type(Foo, "Foo")
+
+    subfoo = SubFoo()
+    # should fallbact to Foo serializer
+    serialized_object = pa.serialize(subfoo, serialization_context)
+
+    reconstructed_object = serialized_object.deserialize(
+        serialization_context
+    )
+    assert type(reconstructed_object) == Foo
+
+
+class Serializable(object):
+    pass
+
+
+def serialize_serializable(obj):
+    return {"type": type(obj), "data": obj.__dict__}
+
+
+def deserialize_serializable(obj):
+    val = obj["type"].__new__(obj["type"])
+    val.__dict__.update(obj["data"])
+    return val
+
+
+class SerializableClass(Serializable):
+    def __init__(self):
+        self.value = 3
+
+
+def test_serialize_subclasses():
+
+    # This test shows how subclasses can be handled in an idiomatic way
+    # by having only a serializer for the base class
+
+    # This technique should however be used with care, since pickling
+    # type(obj) with couldpickle will include the full class definition
+    # in the serialized representation.
+    # This means the class definition is part of every instance of the
+    # object, which in general is not desirable; registering all subclasses
+    # with register_type will result in faster and more memory
+    # efficient serialization.
+
+    serialization_context.register_type(
+        Serializable, "Serializable",
+        custom_serializer=serialize_serializable,
+        custom_deserializer=deserialize_serializable)
+
+    a = SerializableClass()
+    serialized = pa.serialize(a)
+
+    deserialized = serialized.deserialize()
+    assert type(deserialized).__name__ == SerializableClass.__name__
+    assert deserialized.value == 3
+
+
+def test_serialize_to_components_invalid_cases():
+    buf = pa.frombuffer(b'hello')
+
+    components = {
+        'num_tensors': 0,
+        'num_buffers': 1,
+        'data': [buf]
+    }
+
+    with pytest.raises(pa.ArrowException):
+        pa.deserialize_components(components)
+
+    components = {
+        'num_tensors': 1,
+        'num_buffers': 0,
+        'data': [buf, buf]
+    }
+
+    with pytest.raises(pa.ArrowException):
+        pa.deserialize_components(components)

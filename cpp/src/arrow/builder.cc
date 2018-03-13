@@ -28,19 +28,18 @@
 #include "arrow/buffer.h"
 #include "arrow/compare.h"
 #include "arrow/status.h"
-#include "arrow/table.h"
 #include "arrow/type.h"
 #include "arrow/type_traits.h"
 #include "arrow/util/bit-util.h"
 #include "arrow/util/cpu-info.h"
 #include "arrow/util/decimal.h"
 #include "arrow/util/hash-util.h"
+#include "arrow/util/hash.h"
 #include "arrow/util/logging.h"
 
 namespace arrow {
 
 using internal::AdaptiveIntBuilderBase;
-using internal::WrappedBinary;
 
 Status ArrayBuilder::AppendToBitmap(bool is_valid) {
   if (length_ == capacity_) {
@@ -96,6 +95,13 @@ Status ArrayBuilder::Advance(int64_t elements) {
     return Status::Invalid("Builder must be expanded");
   }
   length_ += elements;
+  return Status::OK();
+}
+
+Status ArrayBuilder::Finish(std::shared_ptr<Array>* out) {
+  std::shared_ptr<ArrayData> internal_data;
+  RETURN_NOT_OK(FinishInternal(&internal_data));
+  *out = MakeArray(internal_data);
   return Status::OK();
 }
 
@@ -213,8 +219,8 @@ void ArrayBuilder::UnsafeSetNotNull(int64_t length) {
 // ----------------------------------------------------------------------
 // Null builder
 
-Status NullBuilder::Finish(std::shared_ptr<Array>* out) {
-  *out = std::make_shared<NullArray>(length_);
+Status NullBuilder::FinishInternal(std::shared_ptr<ArrayData>* out) {
+  *out = ArrayData::Make(null(), length_, {nullptr}, length_);
   length_ = null_count_ = 0;
   return Status::OK();
 }
@@ -302,14 +308,13 @@ Status PrimitiveBuilder<T>::Append(const std::vector<value_type>& values) {
 }
 
 template <typename T>
-Status PrimitiveBuilder<T>::Finish(std::shared_ptr<Array>* out) {
+Status PrimitiveBuilder<T>::FinishInternal(std::shared_ptr<ArrayData>* out) {
   const int64_t bytes_required = TypeTraits<T>::bytes_required(length_);
   if (bytes_required > 0 && bytes_required < data_->size()) {
     // Trim buffers
     RETURN_NOT_OK(data_->Resize(bytes_required));
   }
-  *out = std::make_shared<typename TypeTraits<T>::ArrayType>(type_, length_, data_,
-                                                             null_bitmap_, null_count_);
+  *out = ArrayData::Make(type_, length_, {null_bitmap_, data_}, null_count_);
 
   data_ = null_bitmap_ = nullptr;
   capacity_ = length_ = null_count_ = 0;
@@ -372,33 +377,33 @@ Status AdaptiveIntBuilderBase::Resize(int64_t capacity) {
 
 AdaptiveIntBuilder::AdaptiveIntBuilder(MemoryPool* pool) : AdaptiveIntBuilderBase(pool) {}
 
-Status AdaptiveIntBuilder::Finish(std::shared_ptr<Array>* out) {
+Status AdaptiveIntBuilder::FinishInternal(std::shared_ptr<ArrayData>* out) {
   const int64_t bytes_required = length_ * int_size_;
   if (bytes_required > 0 && bytes_required < data_->size()) {
     // Trim buffers
     RETURN_NOT_OK(data_->Resize(bytes_required));
   }
+
+  std::shared_ptr<DataType> output_type;
   switch (int_size_) {
     case 1:
-      *out =
-          std::make_shared<Int8Array>(int8(), length_, data_, null_bitmap_, null_count_);
+      output_type = int8();
       break;
     case 2:
-      *out = std::make_shared<Int16Array>(int16(), length_, data_, null_bitmap_,
-                                          null_count_);
+      output_type = int16();
       break;
     case 4:
-      *out = std::make_shared<Int32Array>(int32(), length_, data_, null_bitmap_,
-                                          null_count_);
+      output_type = int32();
       break;
     case 8:
-      *out = std::make_shared<Int64Array>(int64(), length_, data_, null_bitmap_,
-                                          null_count_);
+      output_type = int64();
       break;
     default:
       DCHECK(false);
       return Status::NotImplemented("Only ints of size 1,2,4,8 are supported");
   }
+
+  *out = ArrayData::Make(output_type, length_, {null_bitmap_, data_}, null_count_);
 
   data_ = null_bitmap_ = nullptr;
   capacity_ = length_ = null_count_ = 0;
@@ -529,33 +534,32 @@ Status AdaptiveIntBuilder::ExpandIntSize(uint8_t new_int_size) {
 AdaptiveUIntBuilder::AdaptiveUIntBuilder(MemoryPool* pool)
     : AdaptiveIntBuilderBase(pool) {}
 
-Status AdaptiveUIntBuilder::Finish(std::shared_ptr<Array>* out) {
+Status AdaptiveUIntBuilder::FinishInternal(std::shared_ptr<ArrayData>* out) {
   const int64_t bytes_required = length_ * int_size_;
   if (bytes_required > 0 && bytes_required < data_->size()) {
     // Trim buffers
     RETURN_NOT_OK(data_->Resize(bytes_required));
   }
+  std::shared_ptr<DataType> output_type;
   switch (int_size_) {
     case 1:
-      *out = std::make_shared<UInt8Array>(uint8(), length_, data_, null_bitmap_,
-                                          null_count_);
+      output_type = uint8();
       break;
     case 2:
-      *out = std::make_shared<UInt16Array>(uint16(), length_, data_, null_bitmap_,
-                                           null_count_);
+      output_type = uint16();
       break;
     case 4:
-      *out = std::make_shared<UInt32Array>(uint32(), length_, data_, null_bitmap_,
-                                           null_count_);
+      output_type = uint32();
       break;
     case 8:
-      *out = std::make_shared<UInt64Array>(uint64(), length_, data_, null_bitmap_,
-                                           null_count_);
+      output_type = uint64();
       break;
     default:
       DCHECK(false);
       return Status::NotImplemented("Only ints of size 1,2,4,8 are supported");
   }
+
+  *out = ArrayData::Make(output_type, length_, {null_bitmap_, data_}, null_count_);
 
   data_ = null_bitmap_ = nullptr;
   capacity_ = length_ = null_count_ = 0;
@@ -691,11 +695,6 @@ BooleanBuilder::BooleanBuilder(const std::shared_ptr<DataType>& type, MemoryPool
   DCHECK_EQ(Type::BOOL, type->id());
 }
 
-#ifndef ARROW_NO_DEPRECATED_API
-BooleanBuilder::BooleanBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type)
-    : BooleanBuilder(type, pool) {}
-#endif
-
 Status BooleanBuilder::Init(int64_t capacity) {
   RETURN_NOT_OK(ArrayBuilder::Init(capacity));
   data_ = std::make_shared<PoolBuffer>(pool_);
@@ -730,14 +729,14 @@ Status BooleanBuilder::Resize(int64_t capacity) {
   return Status::OK();
 }
 
-Status BooleanBuilder::Finish(std::shared_ptr<Array>* out) {
+Status BooleanBuilder::FinishInternal(std::shared_ptr<ArrayData>* out) {
   const int64_t bytes_required = BitUtil::BytesForBits(length_);
 
   if (bytes_required > 0 && bytes_required < data_->size()) {
     // Trim buffers
     RETURN_NOT_OK(data_->Resize(bytes_required));
   }
-  *out = std::make_shared<BooleanArray>(type_, length_, data_, null_bitmap_, null_count_);
+  *out = ArrayData::Make(boolean(), length_, {null_bitmap_, data_}, null_count_);
 
   data_ = null_bitmap_ = nullptr;
   capacity_ = length_ = null_count_ = 0;
@@ -810,11 +809,12 @@ Status BooleanBuilder::Append(const std::vector<bool>& values) {
 // ----------------------------------------------------------------------
 // DictionaryBuilder
 
+using internal::WrappedBinary;
+
 template <typename T>
 DictionaryBuilder<T>::DictionaryBuilder(const std::shared_ptr<DataType>& type,
                                         MemoryPool* pool)
     : ArrayBuilder(type, pool),
-      hash_table_(new PoolBuffer(pool)),
       hash_slots_(nullptr),
       dict_builder_(type, pool),
       values_builder_(pool),
@@ -824,38 +824,46 @@ DictionaryBuilder<T>::DictionaryBuilder(const std::shared_ptr<DataType>& type,
   }
 }
 
+DictionaryBuilder<NullType>::DictionaryBuilder(const std::shared_ptr<DataType>& type,
+                                               MemoryPool* pool)
+    : ArrayBuilder(type, pool), values_builder_(pool) {
+  if (!::arrow::CpuInfo::initialized()) {
+    ::arrow::CpuInfo::Init();
+  }
+}
+
+DictionaryBuilder<NullType>::~DictionaryBuilder() {}
+
 template <>
 DictionaryBuilder<FixedSizeBinaryType>::DictionaryBuilder(
     const std::shared_ptr<DataType>& type, MemoryPool* pool)
     : ArrayBuilder(type, pool),
-      hash_table_(new PoolBuffer(pool)),
       hash_slots_(nullptr),
       dict_builder_(type, pool),
-      values_builder_(pool) {
+      values_builder_(pool),
+      byte_width_(static_cast<const FixedSizeBinaryType&>(*type).byte_width()) {
   if (!::arrow::CpuInfo::initialized()) {
     ::arrow::CpuInfo::Init();
   }
-  byte_width_ = static_cast<const FixedSizeBinaryType&>(*type).byte_width();
 }
-
-#ifndef ARROW_NO_DEPRECATED_API
-template <typename T>
-DictionaryBuilder<T>::DictionaryBuilder(MemoryPool* pool,
-                                        const std::shared_ptr<DataType>& type)
-    : DictionaryBuilder(type, pool) {}
-#endif
 
 template <typename T>
 Status DictionaryBuilder<T>::Init(int64_t elements) {
   RETURN_NOT_OK(ArrayBuilder::Init(elements));
 
   // Fill the initial hash table
-  RETURN_NOT_OK(hash_table_->Resize(sizeof(hash_slot_t) * kInitialHashTableSize));
+  RETURN_NOT_OK(internal::NewHashTable(kInitialHashTableSize, pool_, &hash_table_));
   hash_slots_ = reinterpret_cast<int32_t*>(hash_table_->mutable_data());
-  std::fill(hash_slots_, hash_slots_ + kInitialHashTableSize, kHashSlotEmpty);
   hash_table_size_ = kInitialHashTableSize;
   mod_bitmask_ = kInitialHashTableSize - 1;
+  hash_table_load_threshold_ =
+      static_cast<int64_t>(static_cast<double>(elements) * kMaxHashTableLoad);
 
+  return values_builder_.Init(elements);
+}
+
+Status DictionaryBuilder<NullType>::Init(int64_t elements) {
+  RETURN_NOT_OK(ArrayBuilder::Init(elements));
   return values_builder_.Init(elements);
 }
 
@@ -872,16 +880,33 @@ Status DictionaryBuilder<T>::Resize(int64_t capacity) {
   }
 }
 
+Status DictionaryBuilder<NullType>::Resize(int64_t capacity) {
+  if (capacity < kMinBuilderCapacity) {
+    capacity = kMinBuilderCapacity;
+  }
+
+  if (capacity_ == 0) {
+    return Init(capacity);
+  } else {
+    return ArrayBuilder::Resize(capacity);
+  }
+}
+
 template <typename T>
-Status DictionaryBuilder<T>::Finish(std::shared_ptr<Array>* out) {
+Status DictionaryBuilder<T>::FinishInternal(std::shared_ptr<ArrayData>* out) {
   std::shared_ptr<Array> dictionary;
   RETURN_NOT_OK(dict_builder_.Finish(&dictionary));
 
-  std::shared_ptr<Array> values;
-  RETURN_NOT_OK(values_builder_.Finish(&values));
+  RETURN_NOT_OK(values_builder_.FinishInternal(out));
+  (*out)->type = std::make_shared<DictionaryType>((*out)->type, dictionary);
+  return Status::OK();
+}
 
-  auto type = std::make_shared<DictionaryType>(values->type(), dictionary);
-  *out = std::make_shared<DictionaryArray>(type, values);
+Status DictionaryBuilder<NullType>::FinishInternal(std::shared_ptr<ArrayData>* out) {
+  std::shared_ptr<Array> dictionary = std::make_shared<NullArray>(0);
+
+  RETURN_NOT_OK(values_builder_.FinishInternal(out));
+  (*out)->type = std::make_shared<DictionaryType>((*out)->type, dictionary);
   return Status::OK();
 }
 
@@ -889,7 +914,7 @@ template <typename T>
 Status DictionaryBuilder<T>::Append(const Scalar& value) {
   RETURN_NOT_OK(Reserve(1));
   // Based on DictEncoder<DType>::Put
-  int j = HashValue(value) & mod_bitmask_;
+  int64_t j = HashValue(value) & mod_bitmask_;
   hash_slot_t index = hash_slots_[j];
 
   // Find an empty slot
@@ -909,7 +934,7 @@ Status DictionaryBuilder<T>::Append(const Scalar& value) {
     RETURN_NOT_OK(AppendDictionary(value));
 
     if (ARROW_PREDICT_FALSE(static_cast<int32_t>(dict_builder_.length()) >
-                            hash_table_size_ * kMaxHashTableLoad)) {
+                            hash_table_load_threshold_)) {
       RETURN_NOT_OK(DoubleTableSize());
     }
   }
@@ -921,7 +946,7 @@ Status DictionaryBuilder<T>::Append(const Scalar& value) {
 
 template <typename T>
 Status DictionaryBuilder<T>::AppendArray(const Array& array) {
-  const NumericArray<T>& numeric_array = static_cast<const NumericArray<T>&>(array);
+  const auto& numeric_array = static_cast<const NumericArray<T>&>(array);
   for (int64_t i = 0; i < array.length(); i++) {
     if (array.IsNull(i)) {
       RETURN_NOT_OK(AppendNull());
@@ -932,14 +957,20 @@ Status DictionaryBuilder<T>::AppendArray(const Array& array) {
   return Status::OK();
 }
 
+Status DictionaryBuilder<NullType>::AppendArray(const Array& array) {
+  for (int64_t i = 0; i < array.length(); i++) {
+    RETURN_NOT_OK(AppendNull());
+  }
+  return Status::OK();
+}
+
 template <>
 Status DictionaryBuilder<FixedSizeBinaryType>::AppendArray(const Array& array) {
   if (!type_->Equals(*array.type())) {
     return Status::Invalid("Cannot append FixedSizeBinary array with non-matching type");
   }
 
-  const FixedSizeBinaryArray& numeric_array =
-      static_cast<const FixedSizeBinaryArray&>(array);
+  const auto& numeric_array = static_cast<const FixedSizeBinaryArray&>(array);
   for (int64_t i = 0; i < array.length(); i++) {
     if (array.IsNull(i)) {
       RETURN_NOT_OK(AppendNull());
@@ -955,47 +986,15 @@ Status DictionaryBuilder<T>::AppendNull() {
   return values_builder_.AppendNull();
 }
 
+Status DictionaryBuilder<NullType>::AppendNull() { return values_builder_.AppendNull(); }
+
 template <typename T>
 Status DictionaryBuilder<T>::DoubleTableSize() {
-  int new_size = hash_table_size_ * 2;
-  auto new_hash_table = std::make_shared<PoolBuffer>(pool_);
+#define INNER_LOOP                                                \
+  Scalar value = GetDictionaryValue(static_cast<int64_t>(index)); \
+  int64_t j = HashValue(value) & new_mod_bitmask;
 
-  RETURN_NOT_OK(new_hash_table->Resize(sizeof(hash_slot_t) * new_size));
-  int32_t* new_hash_slots = reinterpret_cast<int32_t*>(new_hash_table->mutable_data());
-  std::fill(new_hash_slots, new_hash_slots + new_size, kHashSlotEmpty);
-  int new_mod_bitmask = new_size - 1;
-
-  for (int i = 0; i < hash_table_size_; ++i) {
-    hash_slot_t index = hash_slots_[i];
-
-    if (index == kHashSlotEmpty) {
-      continue;
-    }
-
-    // Compute the hash value mod the new table size to start looking for an
-    // empty slot
-    Scalar value = GetDictionaryValue(static_cast<int64_t>(index));
-
-    // Find an empty slot in the new hash table
-    int j = HashValue(value) & new_mod_bitmask;
-    hash_slot_t slot = new_hash_slots[j];
-
-    while (kHashSlotEmpty != slot && SlotDifferent(slot, value)) {
-      ++j;
-      if (j == new_size) {
-        j = 0;
-      }
-      slot = new_hash_slots[j];
-    }
-
-    // Copy the old slot index to the new hash table
-    new_hash_slots[j] = index;
-  }
-
-  hash_table_ = new_hash_table;
-  hash_slots_ = reinterpret_cast<int32_t*>(hash_table_->mutable_data());
-  hash_table_size_ = new_size;
-  mod_bitmask_ = new_size - 1;
+  DOUBLE_TABLE_SIZE(, INNER_LOOP);
 
   return Status::OK();
 }
@@ -1013,12 +1012,12 @@ const uint8_t* DictionaryBuilder<FixedSizeBinaryType>::GetDictionaryValue(int64_
 }
 
 template <typename T>
-int DictionaryBuilder<T>::HashValue(const Scalar& value) {
+int64_t DictionaryBuilder<T>::HashValue(const Scalar& value) {
   return HashUtil::Hash(&value, sizeof(Scalar), 0);
 }
 
 template <>
-int DictionaryBuilder<FixedSizeBinaryType>::HashValue(const Scalar& value) {
+int64_t DictionaryBuilder<FixedSizeBinaryType>::HashValue(const Scalar& value) {
   return HashUtil::Hash(value, byte_width_, 0);
 }
 
@@ -1070,7 +1069,7 @@ Status DictionaryBuilder<T>::AppendDictionary(const Scalar& value) {
   }                                                                                 \
                                                                                     \
   template <>                                                                       \
-  int DictionaryBuilder<Type>::HashValue(const WrappedBinary& value) {              \
+  int64_t DictionaryBuilder<Type>::HashValue(const WrappedBinary& value) {          \
     return HashUtil::Hash(value.ptr_, value.length_, 0);                            \
   }                                                                                 \
                                                                                     \
@@ -1107,25 +1106,22 @@ template class DictionaryBuilder<BinaryType>;
 template class DictionaryBuilder<StringType>;
 
 // ----------------------------------------------------------------------
-// DecimalBuilder
+// Decimal128Builder
 
-DecimalBuilder::DecimalBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool)
+Decimal128Builder::Decimal128Builder(const std::shared_ptr<DataType>& type,
+                                     MemoryPool* pool)
     : FixedSizeBinaryBuilder(type, pool) {}
 
-#ifndef ARROW_NO_DEPRECATED_API
-DecimalBuilder::DecimalBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type)
-    : DecimalBuilder(type, pool) {}
-#endif
-
-Status DecimalBuilder::Append(const Decimal128& value) {
+Status Decimal128Builder::Append(const Decimal128& value) {
   RETURN_NOT_OK(FixedSizeBinaryBuilder::Reserve(1));
   return FixedSizeBinaryBuilder::Append(value.ToBytes());
 }
 
-Status DecimalBuilder::Finish(std::shared_ptr<Array>* out) {
+Status Decimal128Builder::FinishInternal(std::shared_ptr<ArrayData>* out) {
   std::shared_ptr<Buffer> data;
   RETURN_NOT_OK(byte_builder_.Finish(&data));
-  *out = std::make_shared<DecimalArray>(type_, length_, data, null_bitmap_, null_count_);
+
+  *out = ArrayData::Make(type_, length_, {null_bitmap_, data}, null_count_);
   return Status::OK();
 }
 
@@ -1179,20 +1175,21 @@ Status ListBuilder::Resize(int64_t capacity) {
   return ArrayBuilder::Resize(capacity);
 }
 
-Status ListBuilder::Finish(std::shared_ptr<Array>* out) {
+Status ListBuilder::FinishInternal(std::shared_ptr<ArrayData>* out) {
   RETURN_NOT_OK(AppendNextOffset());
 
   std::shared_ptr<Buffer> offsets;
   RETURN_NOT_OK(offsets_builder_.Finish(&offsets));
 
-  std::shared_ptr<Array> items = values_;
-  if (!items) {
-    RETURN_NOT_OK(value_builder_->Finish(&items));
+  std::shared_ptr<ArrayData> items;
+  if (values_) {
+    items = values_->data();
+  } else {
+    RETURN_NOT_OK(value_builder_->FinishInternal(&items));
   }
 
-  *out = std::make_shared<ListArray>(type_, length_, offsets, items, null_bitmap_,
-                                     null_count_);
-
+  *out = ArrayData::Make(type_, length_, {null_bitmap_, offsets}, null_count_);
+  (*out)->child_data.emplace_back(std::move(items));
   Reset();
   return Status::OK();
 }
@@ -1212,11 +1209,6 @@ ArrayBuilder* ListBuilder::value_builder() const {
 
 BinaryBuilder::BinaryBuilder(const std::shared_ptr<DataType>& type, MemoryPool* pool)
     : ArrayBuilder(type, pool), offsets_builder_(pool), value_data_builder_(pool) {}
-
-#ifndef ARROW_NO_DEPRECATED_API
-BinaryBuilder::BinaryBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type)
-    : BinaryBuilder(type, pool) {}
-#endif
 
 BinaryBuilder::BinaryBuilder(MemoryPool* pool) : BinaryBuilder(binary(), pool) {}
 
@@ -1268,15 +1260,8 @@ Status BinaryBuilder::FinishInternal(std::shared_ptr<ArrayData>* out) {
   RETURN_NOT_OK(offsets_builder_.Finish(&offsets));
   RETURN_NOT_OK(value_data_builder_.Finish(&value_data));
 
-  BufferVector buffers = {null_bitmap_, offsets, value_data};
-  *out = std::make_shared<ArrayData>(type_, length_, std::move(buffers), null_count_, 0);
-  return Status::OK();
-}
-
-Status BinaryBuilder::Finish(std::shared_ptr<Array>* out) {
-  std::shared_ptr<ArrayData> data;
-  RETURN_NOT_OK(FinishInternal(&data));
-  *out = std::make_shared<BinaryArray>(data);
+  *out = ArrayData::Make(type_, length_, {null_bitmap_, offsets, value_data}, null_count_,
+                         0);
   Reset();
   return Status::OK();
 }
@@ -1300,14 +1285,6 @@ const uint8_t* BinaryBuilder::GetValue(int64_t i, int32_t* out_length) const {
 
 StringBuilder::StringBuilder(MemoryPool* pool) : BinaryBuilder(utf8(), pool) {}
 
-Status StringBuilder::Finish(std::shared_ptr<Array>* out) {
-  std::shared_ptr<ArrayData> data;
-  RETURN_NOT_OK(FinishInternal(&data));
-  *out = std::make_shared<StringArray>(data);
-  Reset();
-  return Status::OK();
-}
-
 // ----------------------------------------------------------------------
 // Fixed width binary
 
@@ -1316,12 +1293,6 @@ FixedSizeBinaryBuilder::FixedSizeBinaryBuilder(const std::shared_ptr<DataType>& 
     : ArrayBuilder(type, pool),
       byte_width_(static_cast<const FixedSizeBinaryType&>(*type).byte_width()),
       byte_builder_(pool) {}
-
-#ifndef ARROW_NO_DEPRECATED_API
-FixedSizeBinaryBuilder::FixedSizeBinaryBuilder(MemoryPool* pool,
-                                               const std::shared_ptr<DataType>& type)
-    : FixedSizeBinaryBuilder(type, pool) {}
-#endif
 
 Status FixedSizeBinaryBuilder::Append(const uint8_t* value) {
   RETURN_NOT_OK(Reserve(1));
@@ -1356,11 +1327,11 @@ Status FixedSizeBinaryBuilder::Resize(int64_t capacity) {
   return ArrayBuilder::Resize(capacity);
 }
 
-Status FixedSizeBinaryBuilder::Finish(std::shared_ptr<Array>* out) {
+Status FixedSizeBinaryBuilder::FinishInternal(std::shared_ptr<ArrayData>* out) {
   std::shared_ptr<Buffer> data;
   RETURN_NOT_OK(byte_builder_.Finish(&data));
-  *out = std::make_shared<FixedSizeBinaryArray>(type_, length_, data, null_bitmap_,
-                                                null_count_);
+
+  *out = ArrayData::Make(type_, length_, {null_bitmap_, data}, null_count_);
   return Status::OK();
 }
 
@@ -1378,23 +1349,16 @@ StructBuilder::StructBuilder(const std::shared_ptr<DataType>& type, MemoryPool* 
   field_builders_ = std::move(field_builders);
 }
 
-#ifndef ARROW_NO_DEPRECATED_API
-StructBuilder::StructBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type,
-                             std::vector<std::unique_ptr<ArrayBuilder>>&& field_builders)
-    : StructBuilder(type, pool, std::move(field_builders)) {}
-#endif
+Status StructBuilder::FinishInternal(std::shared_ptr<ArrayData>* out) {
+  *out = ArrayData::Make(type_, length_, {null_bitmap_}, null_count_);
 
-Status StructBuilder::Finish(std::shared_ptr<Array>* out) {
-  std::vector<std::shared_ptr<Array>> fields(field_builders_.size());
+  (*out)->child_data.resize(field_builders_.size());
   for (size_t i = 0; i < field_builders_.size(); ++i) {
-    RETURN_NOT_OK(field_builders_[i]->Finish(&fields[i]));
+    RETURN_NOT_OK(field_builders_[i]->FinishInternal(&(*out)->child_data[i]));
   }
-
-  *out = std::make_shared<StructArray>(type_, length_, fields, null_bitmap_, null_count_);
 
   null_bitmap_ = nullptr;
   capacity_ = length_ = null_count_ = 0;
-
   return Status::OK();
 }
 
@@ -1431,12 +1395,13 @@ Status MakeBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type,
       BUILDER_CASE(TIME64, Time64Builder);
       BUILDER_CASE(TIMESTAMP, TimestampBuilder);
       BUILDER_CASE(BOOL, BooleanBuilder);
+      BUILDER_CASE(HALF_FLOAT, HalfFloatBuilder);
       BUILDER_CASE(FLOAT, FloatBuilder);
       BUILDER_CASE(DOUBLE, DoubleBuilder);
       BUILDER_CASE(STRING, StringBuilder);
       BUILDER_CASE(BINARY, BinaryBuilder);
       BUILDER_CASE(FIXED_SIZE_BINARY, FixedSizeBinaryBuilder);
-      BUILDER_CASE(DECIMAL, DecimalBuilder);
+      BUILDER_CASE(DECIMAL, Decimal128Builder);
     case Type::LIST: {
       std::unique_ptr<ArrayBuilder> value_builder;
       std::shared_ptr<DataType> value_type =
@@ -1464,123 +1429,6 @@ Status MakeBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type,
       ss << "MakeBuilder: cannot construct builder for type " << type->ToString();
       return Status::NotImplemented(ss.str());
     }
-  }
-}
-
-#define DICTIONARY_BUILDER_CASE(ENUM, BuilderType) \
-  case Type::ENUM:                                 \
-    out->reset(new BuilderType(type, pool));       \
-    return Status::OK();
-
-Status MakeDictionaryBuilder(MemoryPool* pool, const std::shared_ptr<DataType>& type,
-                             std::shared_ptr<ArrayBuilder>* out) {
-  switch (type->id()) {
-    DICTIONARY_BUILDER_CASE(UINT8, DictionaryBuilder<UInt8Type>);
-    DICTIONARY_BUILDER_CASE(INT8, DictionaryBuilder<Int8Type>);
-    DICTIONARY_BUILDER_CASE(UINT16, DictionaryBuilder<UInt16Type>);
-    DICTIONARY_BUILDER_CASE(INT16, DictionaryBuilder<Int16Type>);
-    DICTIONARY_BUILDER_CASE(UINT32, DictionaryBuilder<UInt32Type>);
-    DICTIONARY_BUILDER_CASE(INT32, DictionaryBuilder<Int32Type>);
-    DICTIONARY_BUILDER_CASE(UINT64, DictionaryBuilder<UInt64Type>);
-    DICTIONARY_BUILDER_CASE(INT64, DictionaryBuilder<Int64Type>);
-    DICTIONARY_BUILDER_CASE(DATE32, DictionaryBuilder<Date32Type>);
-    DICTIONARY_BUILDER_CASE(DATE64, DictionaryBuilder<Date64Type>);
-    DICTIONARY_BUILDER_CASE(TIME32, DictionaryBuilder<Time32Type>);
-    DICTIONARY_BUILDER_CASE(TIME64, DictionaryBuilder<Time64Type>);
-    DICTIONARY_BUILDER_CASE(TIMESTAMP, DictionaryBuilder<TimestampType>);
-    DICTIONARY_BUILDER_CASE(FLOAT, DictionaryBuilder<FloatType>);
-    DICTIONARY_BUILDER_CASE(DOUBLE, DictionaryBuilder<DoubleType>);
-    DICTIONARY_BUILDER_CASE(STRING, StringDictionaryBuilder);
-    DICTIONARY_BUILDER_CASE(BINARY, BinaryDictionaryBuilder);
-    DICTIONARY_BUILDER_CASE(FIXED_SIZE_BINARY, DictionaryBuilder<FixedSizeBinaryType>);
-    default:
-      return Status::NotImplemented(type->ToString());
-  }
-}
-
-#define DICTIONARY_ARRAY_CASE(ENUM, BuilderType)                           \
-  case Type::ENUM:                                                         \
-    builder = std::make_shared<BuilderType>(type, pool);                   \
-    RETURN_NOT_OK(static_cast<BuilderType&>(*builder).AppendArray(input)); \
-    RETURN_NOT_OK(builder->Finish(out));                                   \
-    return Status::OK();
-
-Status EncodeArrayToDictionary(const Array& input, MemoryPool* pool,
-                               std::shared_ptr<Array>* out) {
-  const std::shared_ptr<DataType>& type = input.data()->type;
-  std::shared_ptr<ArrayBuilder> builder;
-  switch (type->id()) {
-    DICTIONARY_ARRAY_CASE(UINT8, DictionaryBuilder<UInt8Type>);
-    DICTIONARY_ARRAY_CASE(INT8, DictionaryBuilder<Int8Type>);
-    DICTIONARY_ARRAY_CASE(UINT16, DictionaryBuilder<UInt16Type>);
-    DICTIONARY_ARRAY_CASE(INT16, DictionaryBuilder<Int16Type>);
-    DICTIONARY_ARRAY_CASE(UINT32, DictionaryBuilder<UInt32Type>);
-    DICTIONARY_ARRAY_CASE(INT32, DictionaryBuilder<Int32Type>);
-    DICTIONARY_ARRAY_CASE(UINT64, DictionaryBuilder<UInt64Type>);
-    DICTIONARY_ARRAY_CASE(INT64, DictionaryBuilder<Int64Type>);
-    DICTIONARY_ARRAY_CASE(DATE32, DictionaryBuilder<Date32Type>);
-    DICTIONARY_ARRAY_CASE(DATE64, DictionaryBuilder<Date64Type>);
-    DICTIONARY_ARRAY_CASE(TIME32, DictionaryBuilder<Time32Type>);
-    DICTIONARY_ARRAY_CASE(TIME64, DictionaryBuilder<Time64Type>);
-    DICTIONARY_ARRAY_CASE(TIMESTAMP, DictionaryBuilder<TimestampType>);
-    DICTIONARY_ARRAY_CASE(FLOAT, DictionaryBuilder<FloatType>);
-    DICTIONARY_ARRAY_CASE(DOUBLE, DictionaryBuilder<DoubleType>);
-    DICTIONARY_ARRAY_CASE(STRING, StringDictionaryBuilder);
-    DICTIONARY_ARRAY_CASE(BINARY, BinaryDictionaryBuilder);
-    DICTIONARY_ARRAY_CASE(FIXED_SIZE_BINARY, DictionaryBuilder<FixedSizeBinaryType>);
-    default:
-      std::stringstream ss;
-      ss << "Cannot encode array of type " << type->ToString();
-      ss << " to dictionary";
-      return Status::NotImplemented(ss.str());
-  }
-}
-#define DICTIONARY_COLUMN_CASE(ENUM, BuilderType)                             \
-  case Type::ENUM:                                                            \
-    builder = std::make_shared<BuilderType>(type, pool);                      \
-    chunks = input.data();                                                    \
-    for (auto chunk : chunks->chunks()) {                                     \
-      RETURN_NOT_OK(static_cast<BuilderType&>(*builder).AppendArray(*chunk)); \
-    }                                                                         \
-    RETURN_NOT_OK(builder->Finish(&arr));                                     \
-    *out = std::make_shared<Column>(input.name(), arr);                       \
-    return Status::OK();
-
-/// \brief Encodes a column to a suitable dictionary type
-/// \param input Column to be encoded
-/// \param pool MemoryPool to allocate the dictionary
-/// \param out The new column
-/// \return Status
-Status EncodeColumnToDictionary(const Column& input, MemoryPool* pool,
-                                std::shared_ptr<Column>* out) {
-  const std::shared_ptr<DataType>& type = input.type();
-  std::shared_ptr<ArrayBuilder> builder;
-  std::shared_ptr<Array> arr;
-  std::shared_ptr<ChunkedArray> chunks;
-  switch (type->id()) {
-    DICTIONARY_COLUMN_CASE(UINT8, DictionaryBuilder<UInt8Type>);
-    DICTIONARY_COLUMN_CASE(INT8, DictionaryBuilder<Int8Type>);
-    DICTIONARY_COLUMN_CASE(UINT16, DictionaryBuilder<UInt16Type>);
-    DICTIONARY_COLUMN_CASE(INT16, DictionaryBuilder<Int16Type>);
-    DICTIONARY_COLUMN_CASE(UINT32, DictionaryBuilder<UInt32Type>);
-    DICTIONARY_COLUMN_CASE(INT32, DictionaryBuilder<Int32Type>);
-    DICTIONARY_COLUMN_CASE(UINT64, DictionaryBuilder<UInt64Type>);
-    DICTIONARY_COLUMN_CASE(INT64, DictionaryBuilder<Int64Type>);
-    DICTIONARY_COLUMN_CASE(DATE32, DictionaryBuilder<Date32Type>);
-    DICTIONARY_COLUMN_CASE(DATE64, DictionaryBuilder<Date64Type>);
-    DICTIONARY_COLUMN_CASE(TIME32, DictionaryBuilder<Time32Type>);
-    DICTIONARY_COLUMN_CASE(TIME64, DictionaryBuilder<Time64Type>);
-    DICTIONARY_COLUMN_CASE(TIMESTAMP, DictionaryBuilder<TimestampType>);
-    DICTIONARY_COLUMN_CASE(FLOAT, DictionaryBuilder<FloatType>);
-    DICTIONARY_COLUMN_CASE(DOUBLE, DictionaryBuilder<DoubleType>);
-    DICTIONARY_COLUMN_CASE(STRING, StringDictionaryBuilder);
-    DICTIONARY_COLUMN_CASE(BINARY, BinaryDictionaryBuilder);
-    DICTIONARY_COLUMN_CASE(FIXED_SIZE_BINARY, DictionaryBuilder<FixedSizeBinaryType>);
-    default:
-      std::stringstream ss;
-      ss << "Cannot encode column of type " << type->ToString();
-      ss << " to dictionary";
-      return Status::NotImplemented(ss.str());
   }
 }
 

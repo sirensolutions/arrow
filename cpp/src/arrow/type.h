@@ -35,97 +35,102 @@
 
 namespace arrow {
 
-// Data types in this library are all *logical*. They can be expressed as
-// either a primitive physical type (bytes or bits of some fixed size), a
-// nested type consisting of other data types, or another data type (e.g. a
-// timestamp encoded as an int64)
+/// \brief Main data type enumeration
+///
+/// Data types in this library are all *logical*. They can be expressed as
+/// either a primitive physical type (bytes or bits of some fixed size), a
+/// nested type consisting of other data types, or another data type (e.g. a
+/// timestamp encoded as an int64)
 struct Type {
   enum type {
-    // A degenerate NULL type represented as 0 bytes/bits
+    /// A NULL type having no physical storage
     NA,
 
-    // A boolean value represented as 1 bit
+    /// Boolean as 1 bit, LSB bit-packed ordering
     BOOL,
 
-    // Little-endian integer types
+    /// Unsigned 8-bit little-endian integer
     UINT8,
+
+    /// Signed 8-bit little-endian integer
     INT8,
+
+    /// Unsigned 16-bit little-endian integer
     UINT16,
+
+    /// Signed 16-bit little-endian integer
     INT16,
+
+    /// Unsigned 32-bit little-endian integer
     UINT32,
+
+    /// Signed 32-bit little-endian integer
     INT32,
+
+    /// Unsigned 64-bit little-endian integer
     UINT64,
+
+    /// Signed 64-bit little-endian integer
     INT64,
 
-    // 2-byte floating point value
+    /// 2-byte floating point value
     HALF_FLOAT,
 
-    // 4-byte floating point value
+    /// 4-byte floating point value
     FLOAT,
 
-    // 8-byte floating point value
+    /// 8-byte floating point value
     DOUBLE,
 
-    // UTF8 variable-length string as List<Char>
+    /// UTF8 variable-length string as List<Char>
     STRING,
 
-    // Variable-length bytes (no guarantee of UTF8-ness)
+    /// Variable-length bytes (no guarantee of UTF8-ness)
     BINARY,
 
-    // Fixed-size binary. Each value occupies the same number of bytes
+    /// Fixed-size binary. Each value occupies the same number of bytes
     FIXED_SIZE_BINARY,
 
-    // int32_t days since the UNIX epoch
+    /// int32_t days since the UNIX epoch
     DATE32,
 
-    // int64_t milliseconds since the UNIX epoch
+    /// int64_t milliseconds since the UNIX epoch
     DATE64,
 
-    // Exact timestamp encoded with int64 since UNIX epoch
-    // Default unit millisecond
+    /// Exact timestamp encoded with int64 since UNIX epoch
+    /// Default unit millisecond
     TIMESTAMP,
 
-    // Time as signed 32-bit integer, representing either seconds or
-    // milliseconds since midnight
+    /// Time as signed 32-bit integer, representing either seconds or
+    /// milliseconds since midnight
     TIME32,
 
-    // Time as signed 64-bit integer, representing either microseconds or
-    // nanoseconds since midnight
+    /// Time as signed 64-bit integer, representing either microseconds or
+    /// nanoseconds since midnight
     TIME64,
 
-    // YEAR_MONTH or DAY_TIME interval in SQL style
+    /// YEAR_MONTH or DAY_TIME interval in SQL style
     INTERVAL,
 
-    // Precision- and scale-based decimal type. Storage type depends on the
-    // parameters.
+    /// Precision- and scale-based decimal type. Storage type depends on the
+    /// parameters.
     DECIMAL,
 
-    // A list of some logical data type
+    /// A list of some logical data type
     LIST,
 
-    // Struct of logical types
+    /// Struct of logical types
     STRUCT,
 
-    // Unions of logical types
+    /// Unions of logical types
     UNION,
 
-    // Dictionary aka Category type
-    DICTIONARY
+    /// Dictionary aka Category type
+    DICTIONARY,
+
+    /// Map, a repeated struct logical type
+    MAP
   };
-};
-
-enum class BufferType : char { DATA, OFFSET, TYPE, VALIDITY };
-
-class BufferDescr {
- public:
-  BufferDescr(BufferType type, int bit_width) : type_(type), bit_width_(bit_width) {}
-
-  BufferType type() const { return type_; }
-  int bit_width() const { return bit_width_; }
-
- private:
-  BufferType type_;
-  int bit_width_;
 };
 
 class ARROW_EXPORT DataType {
@@ -157,8 +162,6 @@ class ARROW_EXPORT DataType {
   /// \since 0.7.0
   virtual std::string name() const = 0;
 
-  virtual std::vector<BufferDescr> GetBufferLayout() const = 0;
-
   Type::type id() const { return id_; }
 
  protected:
@@ -182,8 +185,6 @@ class ARROW_EXPORT FixedWidthType : public DataType {
   using DataType::DataType;
 
   virtual int bit_width() const = 0;
-
-  std::vector<BufferDescr> GetBufferLayout() const override;
 };
 
 class ARROW_EXPORT PrimitiveCType : public FixedWidthType {
@@ -209,7 +210,11 @@ class ARROW_EXPORT FloatingPoint : public Number {
   virtual Precision precision() const = 0;
 };
 
-class ARROW_EXPORT NestedType : public DataType {
+/// \class ParametricType
+/// \brief A superclass for types having additional metadata
+class ParametricType {};
+
+class ARROW_EXPORT NestedType : public DataType, public ParametricType {
  public:
   using DataType::DataType;
 };
@@ -222,14 +227,16 @@ class ARROW_EXPORT Field {
  public:
   Field(const std::string& name, const std::shared_ptr<DataType>& type,
         bool nullable = true,
-        const std::shared_ptr<const KeyValueMetadata>& metadata = nullptr)
+        const std::shared_ptr<const KeyValueMetadata>& metadata = NULLPTR)
       : name_(name), type_(type), nullable_(nullable), metadata_(metadata) {}
 
   std::shared_ptr<const KeyValueMetadata> metadata() const { return metadata_; }
 
-  /// \deprecated
+#ifndef ARROW_NO_DEPRECATED_API
+  /// \note Deprecated since 0.8.0
   Status AddMetadata(const std::shared_ptr<const KeyValueMetadata>& metadata,
                      std::shared_ptr<Field>* out) const;
+#endif
 
   std::shared_ptr<Field> AddMetadata(
       const std::shared_ptr<const KeyValueMetadata>& metadata) const;
@@ -294,8 +301,6 @@ class ARROW_EXPORT NullType : public DataType, public NoExtraMeta {
   std::string ToString() const override;
 
   std::string name() const override { return "null"; }
-
-  std::vector<BufferDescr> GetBufferLayout() const override;
 };
 
 class ARROW_EXPORT BooleanType : public FixedWidthType, public NoExtraMeta {
@@ -400,8 +405,6 @@ class ARROW_EXPORT ListType : public NestedType {
   std::string ToString() const override;
 
   std::string name() const override { return "list"; }
-
-  std::vector<BufferDescr> GetBufferLayout() const override;
 };
 
 // BinaryType type is represents lists of 1-byte values.
@@ -415,15 +418,13 @@ class ARROW_EXPORT BinaryType : public DataType, public NoExtraMeta {
   std::string ToString() const override;
   std::string name() const override { return "binary"; }
 
-  std::vector<BufferDescr> GetBufferLayout() const override;
-
  protected:
   // Allow subclasses to change the logical type.
   explicit BinaryType(Type::type logical_type) : DataType(logical_type) {}
 };
 
 // BinaryType type is represents lists of 1-byte values.
-class ARROW_EXPORT FixedSizeBinaryType : public FixedWidthType {
+class ARROW_EXPORT FixedSizeBinaryType : public FixedWidthType, public ParametricType {
  public:
   static constexpr Type::type type_id = Type::FIXED_SIZE_BINARY;
 
@@ -435,8 +436,6 @@ class ARROW_EXPORT FixedSizeBinaryType : public FixedWidthType {
   Status Accept(TypeVisitor* visitor) const override;
   std::string ToString() const override;
   std::string name() const override { return "fixed_size_binary"; }
-
-  std::vector<BufferDescr> GetBufferLayout() const override;
 
   int32_t byte_width() const { return byte_width_; }
   int bit_width() const override;
@@ -469,50 +468,57 @@ class ARROW_EXPORT StructType : public NestedType {
   Status Accept(TypeVisitor* visitor) const override;
   std::string ToString() const override;
   std::string name() const override { return "struct"; }
-
-  std::vector<BufferDescr> GetBufferLayout() const override;
 };
 
 class ARROW_EXPORT DecimalType : public FixedSizeBinaryType {
  public:
-  static constexpr Type::type type_id = Type::DECIMAL;
-
-  explicit DecimalType(int32_t precision, int32_t scale)
-      : FixedSizeBinaryType(16, Type::DECIMAL), precision_(precision), scale_(scale) {}
-
-  Status Accept(TypeVisitor* visitor) const override;
-  std::string ToString() const override;
-  std::string name() const override { return "decimal"; }
+  explicit DecimalType(int32_t byte_width, int32_t precision, int32_t scale)
+      : FixedSizeBinaryType(byte_width, Type::DECIMAL),
+        precision_(precision),
+        scale_(scale) {}
 
   int32_t precision() const { return precision_; }
   int32_t scale() const { return scale_; }
 
- private:
+ protected:
   int32_t precision_;
   int32_t scale_;
 };
 
-enum class UnionMode : char { SPARSE, DENSE };
+class ARROW_EXPORT Decimal128Type : public DecimalType {
+ public:
+  static constexpr Type::type type_id = Type::DECIMAL;
+
+  explicit Decimal128Type(int32_t precision, int32_t scale)
+      : DecimalType(16, precision, scale) {}
+
+  Status Accept(TypeVisitor* visitor) const override;
+  std::string ToString() const override;
+  std::string name() const override { return "decimal"; }
+};
+
+struct UnionMode {
+  enum type { SPARSE, DENSE };
+};
 
 class ARROW_EXPORT UnionType : public NestedType {
  public:
   static constexpr Type::type type_id = Type::UNION;
 
   UnionType(const std::vector<std::shared_ptr<Field>>& fields,
-            const std::vector<uint8_t>& type_codes, UnionMode mode = UnionMode::SPARSE);
+            const std::vector<uint8_t>& type_codes,
+            UnionMode::type mode = UnionMode::SPARSE);
 
   std::string ToString() const override;
   std::string name() const override { return "union"; }
   Status Accept(TypeVisitor* visitor) const override;
 
-  std::vector<BufferDescr> GetBufferLayout() const override;
-
   const std::vector<uint8_t>& type_codes() const { return type_codes_; }
 
-  UnionMode mode() const { return mode_; }
+  UnionMode::type mode() const { return mode_; }
 
  private:
-  UnionMode mode_;
+  UnionMode::type mode_;
 
   // The type id used in the data to indicate each data type in the union. For
   // example, the first type in the union might be denoted by the id 5 (instead
@@ -590,7 +596,7 @@ static inline std::ostream& operator<<(std::ostream& os, TimeUnit::type unit) {
   return os;
 }
 
-class ARROW_EXPORT TimeType : public FixedWidthType {
+class ARROW_EXPORT TimeType : public FixedWidthType, public ParametricType {
  public:
   TimeUnit::type unit() const { return unit_; }
 
@@ -629,7 +635,7 @@ class ARROW_EXPORT Time64Type : public TimeType {
   std::string name() const override { return "time64"; }
 };
 
-class ARROW_EXPORT TimestampType : public FixedWidthType {
+class ARROW_EXPORT TimestampType : public FixedWidthType, public ParametricType {
  public:
   using Unit = TimeUnit;
 
@@ -716,10 +722,10 @@ class ARROW_EXPORT DictionaryType : public FixedWidthType {
 class ARROW_EXPORT Schema {
  public:
   explicit Schema(const std::vector<std::shared_ptr<Field>>& fields,
-                  const std::shared_ptr<const KeyValueMetadata>& metadata = nullptr);
+                  const std::shared_ptr<const KeyValueMetadata>& metadata = NULLPTR);
 
   explicit Schema(std::vector<std::shared_ptr<Field>>&& fields,
-                  const std::shared_ptr<const KeyValueMetadata>& metadata = nullptr);
+                  const std::shared_ptr<const KeyValueMetadata>& metadata = NULLPTR);
 
   virtual ~Schema() = default;
 
@@ -729,7 +735,7 @@ class ARROW_EXPORT Schema {
   /// Return the ith schema element. Does not boundscheck
   std::shared_ptr<Field> field(int i) const { return fields_[i]; }
 
-  /// Returns nullptr if name not found
+  /// Returns null if name not found
   std::shared_ptr<Field> GetFieldByName(const std::string& name) const;
 
   /// Returns -1 if name not found
@@ -739,7 +745,7 @@ class ARROW_EXPORT Schema {
 
   /// \brief The custom key-value metadata, if any
   ///
-  /// \return metadata may be nullptr
+  /// \return metadata may be null
   std::shared_ptr<const KeyValueMetadata> metadata() const;
 
   /// \brief Render a string representation of the schema suitable for debugging
@@ -749,9 +755,11 @@ class ARROW_EXPORT Schema {
                   std::shared_ptr<Schema>* out) const;
   Status RemoveField(int i, std::shared_ptr<Schema>* out) const;
 
-  /// \deprecated
+#ifndef ARROW_NO_DEPRECATED_API
+  /// \note Deprecated since 0.8.0
   Status AddMetadata(const std::shared_ptr<const KeyValueMetadata>& metadata,
                      std::shared_ptr<Schema>* out) const;
+#endif
 
   /// \brief Replace key-value metadata with new metadata
   ///
@@ -815,7 +823,12 @@ struct_(const std::vector<std::shared_ptr<Field>>& fields);
 /// \brief Create an instance of Union type
 std::shared_ptr<DataType> ARROW_EXPORT
 union_(const std::vector<std::shared_ptr<Field>>& child_fields,
-       const std::vector<uint8_t>& type_codes, UnionMode mode = UnionMode::SPARSE);
+       const std::vector<uint8_t>& type_codes, UnionMode::type mode = UnionMode::SPARSE);
+
+/// \brief Create and instance of Union type
+std::shared_ptr<DataType> ARROW_EXPORT
+union_(const std::vector<std::shared_ptr<Array>>& children,
+       UnionMode::type mode = UnionMode::SPARSE);
 
 /// \brief Create an instance of Dictionary type
 std::shared_ptr<DataType> ARROW_EXPORT
@@ -827,30 +840,30 @@ dictionary(const std::shared_ptr<DataType>& index_type,
 /// \param name the field name
 /// \param type the field value type
 /// \param nullable whether the values are nullable, default true
-/// \param metadata any custom key-value metadata, default nullptr
+/// \param metadata any custom key-value metadata, default null
 std::shared_ptr<Field> ARROW_EXPORT field(
     const std::string& name, const std::shared_ptr<DataType>& type, bool nullable = true,
-    const std::shared_ptr<const KeyValueMetadata>& metadata = nullptr);
+    const std::shared_ptr<const KeyValueMetadata>& metadata = NULLPTR);
 
 /// \brief Create a Schema instance
 ///
 /// \param fields the schema's fields
-/// \param metadata any custom key-value metadata, default nullptr
+/// \param metadata any custom key-value metadata, default null
 /// \return schema shared_ptr to Schema
 ARROW_EXPORT
 std::shared_ptr<Schema> schema(
     const std::vector<std::shared_ptr<Field>>& fields,
-    const std::shared_ptr<const KeyValueMetadata>& metadata = nullptr);
+    const std::shared_ptr<const KeyValueMetadata>& metadata = NULLPTR);
 
 /// \brief Create a Schema instance
 ///
 /// \param fields the schema's fields (rvalue reference)
-/// \param metadata any custom key-value metadata, default nullptr
+/// \param metadata any custom key-value metadata, default null
 /// \return schema shared_ptr to Schema
 ARROW_EXPORT
 std::shared_ptr<Schema> schema(
     std::vector<std::shared_ptr<Field>>&& fields,
-    const std::shared_ptr<const KeyValueMetadata>& metadata = nullptr);
+    const std::shared_ptr<const KeyValueMetadata>& metadata = NULLPTR);
 
 }  // namespace arrow
 

@@ -142,19 +142,25 @@ def open_file(source, footer_offset=None):
     return RecordBatchFileReader(source, footer_offset=footer_offset)
 
 
-def serialize_pandas(df):
+def serialize_pandas(df, nthreads=None, preserve_index=True):
     """Serialize a pandas DataFrame into a buffer protocol compatible object.
 
     Parameters
     ----------
     df : pandas.DataFrame
+    nthreads : int, default None
+        Number of threads to use for conversion to Arrow, default all CPUs
+    preserve_index : boolean, default True
+        If True, preserve the pandas index data, otherwise the result will have
+        a default RangeIndex
 
     Returns
     -------
     buf : buffer
         An object compatible with the buffer protocol
     """
-    batch = pa.RecordBatch.from_pandas(df)
+    batch = pa.RecordBatch.from_pandas(df, nthreads=nthreads,
+                                       preserve_index=preserve_index)
     sink = pa.BufferOutputStream()
     writer = pa.RecordBatchStreamWriter(sink, batch.schema)
     writer.write_batch(batch)
@@ -162,15 +168,16 @@ def serialize_pandas(df):
     return sink.get_result()
 
 
-def deserialize_pandas(buf, nthreads=1):
+def deserialize_pandas(buf, nthreads=None):
     """Deserialize a buffer protocol compatible object into a pandas DataFrame.
 
     Parameters
     ----------
     buf : buffer
         An object compatible with the buffer protocol
-    nthreads : int, optional
-        The number of threads to use to convert the buffer to a DataFrame.
+    nthreads : int, defualt None
+        The number of threads to use to convert the buffer to a DataFrame,
+        default all CPUs
 
     Returns
     -------

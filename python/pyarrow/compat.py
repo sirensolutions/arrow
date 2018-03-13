@@ -70,7 +70,7 @@ else:
 
 
 if PY2:
-    import cPickle
+    import cPickle as builtin_pickle
 
     try:
         from cdecimal import Decimal
@@ -80,6 +80,7 @@ if PY2:
     unicode_type = unicode
     lzip = zip
     zip = itertools.izip
+    zip_longest = itertools.izip_longest
 
     def dict_values(x):
         return x.values()
@@ -102,12 +103,18 @@ if PY2:
 
     def frombytes(o):
         return o
+
+    def unichar(s):
+        return unichr(s)
 else:
+    import pickle as builtin_pickle
+
     unicode_type = str
     def lzip(*x):
         return list(zip(*x))
     long = int
     zip = zip
+    zip_longest = itertools.zip_longest
     def dict_values(x):
         return list(x.values())
     from decimal import Decimal
@@ -128,6 +135,9 @@ else:
 
     def frombytes(o):
         return o.decode('utf8')
+
+    def unichar(s):
+        return chr(s)
 
 try:
     import cloudpickle as pickle

@@ -142,7 +142,7 @@ TEST_F(TestArray, SliceRecomputeNullCount) {
   ASSERT_EQ(6, null_arr_sliced->null_count());
 }
 
-TEST_F(TestArray, TestIsNull) {
+TEST_F(TestArray, TestIsNullIsValid) {
   // clang-format off
   vector<uint8_t> null_bitmap = {1, 0, 1, 1, 0, 1, 0, 0,
                                  1, 0, 1, 1, 0, 1, 0, 0,
@@ -170,6 +170,7 @@ TEST_F(TestArray, TestIsNull) {
 
   for (size_t i = 0; i < null_bitmap.size(); ++i) {
     EXPECT_EQ(null_bitmap[i] != 0, !arr->IsNull(i)) << i;
+    EXPECT_EQ(null_bitmap[i] != 0, arr->IsValid(i)) << i;
   }
 }
 
@@ -262,6 +263,8 @@ class TestPrimitiveBuilder : public TestBuilder {
     ASSERT_TRUE(result->Equals(*expected));
   }
 
+  int64_t FlipValue(int64_t value) const { return ~value; }
+
  protected:
   std::shared_ptr<DataType> type_;
   std::unique_ptr<BuilderType> builder_;
@@ -271,47 +274,67 @@ class TestPrimitiveBuilder : public TestBuilder {
   vector<uint8_t> valid_bytes_;
 };
 
-#define PTYPE_DECL(CapType, c_type)               \
-  typedef CapType##Array ArrayType;               \
-  typedef CapType##Builder BuilderType;           \
-  typedef CapType##Type Type;                     \
-  typedef c_type T;                               \
-                                                  \
-  static std::shared_ptr<DataType> type() {       \
-    return std::shared_ptr<DataType>(new Type()); \
+/// \brief uint8_t isn't a valid template parameter to uniform_int_distribution, so
+/// we use SampleType to determine which kind of integer to use to sample.
+template <typename T,
+          typename = typename std::enable_if<std::is_integral<T>::value, T>::type>
+struct UniformIntSampleType {
+  using type = T;
+};
+
+template <>
+struct UniformIntSampleType<uint8_t> {
+  using type = uint16_t;
+};
+
+template <>
+struct UniformIntSampleType<int8_t> {
+  using type = int16_t;
+};
+
+#define PTYPE_DECL(CapType, c_type)     \
+  typedef CapType##Array ArrayType;     \
+  typedef CapType##Builder BuilderType; \
+  typedef CapType##Type Type;           \
+  typedef c_type T;                     \
+                                        \
+  static std::shared_ptr<DataType> type() { return std::make_shared<Type>(); }
+
+#define PINT_DECL(CapType, c_type)                                                       \
+  struct P##CapType {                                                                    \
+    PTYPE_DECL(CapType, c_type)                                                          \
+    static void draw(int64_t N, vector<T>* draws) {                                      \
+      using sample_type = typename UniformIntSampleType<c_type>::type;                   \
+      const T lower = std::numeric_limits<T>::min();                                     \
+      const T upper = std::numeric_limits<T>::max();                                     \
+      test::randint(N, static_cast<sample_type>(lower), static_cast<sample_type>(upper), \
+                    draws);                                                              \
+    }                                                                                    \
   }
 
-#define PINT_DECL(CapType, c_type, LOWER, UPPER)    \
+#define PFLOAT_DECL(CapType, c_type, LOWER, UPPER)  \
   struct P##CapType {                               \
-    PTYPE_DECL(CapType, c_type);                    \
+    PTYPE_DECL(CapType, c_type)                     \
     static void draw(int64_t N, vector<T>* draws) { \
-      test::randint<T>(N, LOWER, UPPER, draws);     \
+      test::random_real(N, 0, LOWER, UPPER, draws); \
     }                                               \
   }
 
-#define PFLOAT_DECL(CapType, c_type, LOWER, UPPER)     \
-  struct P##CapType {                                  \
-    PTYPE_DECL(CapType, c_type);                       \
-    static void draw(int64_t N, vector<T>* draws) {    \
-      test::random_real<T>(N, 0, LOWER, UPPER, draws); \
-    }                                                  \
-  }
+PINT_DECL(UInt8, uint8_t);
+PINT_DECL(UInt16, uint16_t);
+PINT_DECL(UInt32, uint32_t);
+PINT_DECL(UInt64, uint64_t);
 
-PINT_DECL(UInt8, uint8_t, 0, UINT8_MAX);
-PINT_DECL(UInt16, uint16_t, 0, UINT16_MAX);
-PINT_DECL(UInt32, uint32_t, 0, UINT32_MAX);
-PINT_DECL(UInt64, uint64_t, 0, UINT64_MAX);
+PINT_DECL(Int8, int8_t);
+PINT_DECL(Int16, int16_t);
+PINT_DECL(Int32, int32_t);
+PINT_DECL(Int64, int64_t);
 
-PINT_DECL(Int8, int8_t, INT8_MIN, INT8_MAX);
-PINT_DECL(Int16, int16_t, INT16_MIN, INT16_MAX);
-PINT_DECL(Int32, int32_t, INT32_MIN, INT32_MAX);
-PINT_DECL(Int64, int64_t, INT64_MIN, INT64_MAX);
-
-PFLOAT_DECL(Float, float, -1000, 1000);
-PFLOAT_DECL(Double, double, -1000, 1000);
+PFLOAT_DECL(Float, float, -1000.0f, 1000.0f);
+PFLOAT_DECL(Double, double, -1000.0, 1000.0);
 
 struct PBoolean {
-  PTYPE_DECL(Boolean, uint8_t);
+  PTYPE_DECL(Boolean, uint8_t)
 };
 
 template <>
@@ -321,6 +344,11 @@ void TestPrimitiveBuilder<PBoolean>::RandomData(int64_t N, double pct_null) {
 
   test::random_null_bytes(N, 0.5, draws_.data());
   test::random_null_bytes(N, pct_null, valid_bytes_.data());
+}
+
+template <>
+int64_t TestPrimitiveBuilder<PBoolean>::FlipValue(int64_t value) const {
+  return !value;
 }
 
 template <>
@@ -373,12 +401,6 @@ typedef ::testing::Types<PBoolean, PUInt8, PUInt16, PUInt32, PUInt64, PInt8, PIn
     Primitives;
 
 TYPED_TEST_CASE(TestPrimitiveBuilder, Primitives);
-
-#define DECL_T() typedef typename TestFixture::T T;
-
-#define DECL_TYPE() typedef typename TestFixture::Type Type;
-
-#define DECL_ARRAYTYPE() typedef typename TestFixture::ArrayType ArrayType;
 
 TYPED_TEST(TestPrimitiveBuilder, TestInit) {
   DECL_TYPE();
@@ -455,8 +477,8 @@ TYPED_TEST(TestPrimitiveBuilder, Equality) {
   const int64_t first_valid_idx = std::distance(valid_bytes.begin(), first_valid);
   // This should be true with a very high probability, but might introduce flakiness
   ASSERT_LT(first_valid_idx, size - 1);
-  draws[first_valid_idx] =
-      static_cast<T>(~*reinterpret_cast<int64_t*>(&draws[first_valid_idx]));
+  draws[first_valid_idx] = static_cast<T>(
+      this->FlipValue(*reinterpret_cast<int64_t*>(&draws[first_valid_idx])));
   ASSERT_OK(MakeArray(valid_bytes, draws, size, builder, &unequal_array));
 
   // test normal equality
@@ -725,8 +747,8 @@ void CheckSliceApproxEquals() {
   vector<T> draws2;
 
   const uint32_t kSeed = 0;
-  test::random_real<T>(kSize, kSeed, 0, 100, &draws1);
-  test::random_real<T>(kSize, kSeed + 1, 0, 100, &draws2);
+  test::random_real(kSize, kSeed, 0.0, 100.0, &draws1);
+  test::random_real(kSize, kSeed + 1, 0.0, 100.0, &draws2);
 
   // Make the draws equal in the sliced segment, but unequal elsewhere (to
   // catch not using the slice offset)
@@ -1047,6 +1069,17 @@ TEST_F(TestBinaryArray, TestGetValue) {
   }
 }
 
+TEST_F(TestBinaryArray, TestGetString) {
+  for (size_t i = 0; i < expected_.size(); ++i) {
+    if (valid_bytes_[i] == 0) {
+      ASSERT_TRUE(strings_->IsNull(i));
+    } else {
+      std::string val = strings_->GetString(i);
+      ASSERT_EQ(0, std::memcmp(expected_[i].data(), val.c_str(), val.size()));
+    }
+  }
+}
+
 TEST_F(TestBinaryArray, TestEqualsEmptyStrings) {
   BinaryBuilder builder;
 
@@ -1200,7 +1233,7 @@ class TestFWBinaryArray : public ::testing::Test {
 };
 
 TEST_F(TestFWBinaryArray, Builder) {
-  const int32_t byte_width = 10;
+  constexpr int32_t byte_width = 10;
   int64_t length = 4096;
 
   int64_t nbytes = length * byte_width;
@@ -1215,8 +1248,7 @@ TEST_F(TestFWBinaryArray, Builder) {
 
   std::shared_ptr<Array> result;
 
-  auto CheckResult = [this, &length, &is_valid, &raw_data,
-                      &byte_width](const Array& result) {
+  auto CheckResult = [&length, &is_valid, &raw_data, byte_width](const Array& result) {
     // Verify output
     const auto& fw_result = static_cast<const FixedSizeBinaryArray&>(result);
 
@@ -1847,10 +1879,97 @@ TEST(TestFixedSizeBinaryDictionaryBuilder, InvalidTypeAppend) {
   ASSERT_RAISES(Invalid, builder.AppendArray(*fsb_array));
 }
 
+TEST(TestDecimalDictionaryBuilder, Basic) {
+  // Build the dictionary Array
+  const auto& decimal_type = arrow::decimal(2, 0);
+  DictionaryBuilder<FixedSizeBinaryType> builder(decimal_type, default_memory_pool());
+
+  // Test data
+  std::vector<Decimal128> test{12, 12, 11, 12};
+  for (const auto& value : test) {
+    ASSERT_OK(builder.Append(value.ToBytes().data()));
+  }
+
+  std::shared_ptr<Array> result;
+  ASSERT_OK(builder.Finish(&result));
+
+  // Build expected data
+  FixedSizeBinaryBuilder decimal_builder(decimal_type);
+  ASSERT_OK(decimal_builder.Append(Decimal128(12).ToBytes()));
+  ASSERT_OK(decimal_builder.Append(Decimal128(11).ToBytes()));
+
+  std::shared_ptr<Array> decimal_array;
+  ASSERT_OK(decimal_builder.Finish(&decimal_array));
+  auto dtype = arrow::dictionary(int8(), decimal_array);
+
+  Int8Builder int_builder;
+  ASSERT_OK(int_builder.Append({0, 0, 1, 0}));
+  std::shared_ptr<Array> int_array;
+  ASSERT_OK(int_builder.Finish(&int_array));
+
+  DictionaryArray expected(dtype, int_array);
+  ASSERT_TRUE(expected.Equals(result));
+}
+
+TEST(TestDecimalDictionaryBuilder, DoubleTableSize) {
+  const auto& decimal_type = arrow::decimal(21, 0);
+
+  // Build the dictionary Array
+  DictionaryBuilder<FixedSizeBinaryType> builder(decimal_type, default_memory_pool());
+
+  // Build expected data
+  FixedSizeBinaryBuilder fsb_builder(decimal_type);
+  Int16Builder int_builder;
+
+  // Fill with 1024 different values
+  for (int64_t i = 0; i < 1024; i++) {
+    const uint8_t bytes[] = {0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             12,
+                             12,
+                             static_cast<uint8_t>(i / 128),
+                             static_cast<uint8_t>(i % 128)};
+    ASSERT_OK(builder.Append(bytes));
+    ASSERT_OK(fsb_builder.Append(bytes));
+    ASSERT_OK(int_builder.Append(static_cast<uint16_t>(i)));
+  }
+  // Fill with an already existing value
+  const uint8_t known_value[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 12, 0, 1};
+  for (int64_t i = 0; i < 1024; i++) {
+    ASSERT_OK(builder.Append(known_value));
+    ASSERT_OK(int_builder.Append(1));
+  }
+
+  // Finalize result
+  std::shared_ptr<Array> result;
+  ASSERT_OK(builder.Finish(&result));
+
+  // Finalize expected data
+  std::shared_ptr<Array> fsb_array;
+  ASSERT_OK(fsb_builder.Finish(&fsb_array));
+
+  auto dtype = std::make_shared<DictionaryType>(int16(), fsb_array);
+  std::shared_ptr<Array> int_array;
+  ASSERT_OK(int_builder.Finish(&int_array));
+
+  DictionaryArray expected(dtype, int_array);
+  ASSERT_TRUE(expected.Equals(result));
+}
+
 // ----------------------------------------------------------------------
 // List tests
 
-class TestListBuilder : public TestBuilder {
+class TestListArray : public TestBuilder {
  public:
   void SetUp() {
     TestBuilder::SetUp();
@@ -1877,7 +1996,7 @@ class TestListBuilder : public TestBuilder {
   std::shared_ptr<ListArray> result_;
 };
 
-TEST_F(TestListBuilder, Equality) {
+TEST_F(TestListArray, Equality) {
   Int32Builder* vb = static_cast<Int32Builder*>(builder_->value_builder());
 
   std::shared_ptr<Array> array, equal_array, unequal_array;
@@ -1936,9 +2055,66 @@ TEST_F(TestListBuilder, Equality) {
   ASSERT_TRUE(array->RangeEquals(1, 5, 0, slice));
 }
 
-TEST_F(TestListBuilder, TestResize) {}
+TEST_F(TestListArray, TestResize) {}
 
-TEST_F(TestListBuilder, TestAppendNull) {
+TEST_F(TestListArray, TestFromArrays) {
+  std::shared_ptr<Array> offsets1, offsets2, offsets3, offsets4, values;
+
+  std::vector<bool> offsets_is_valid3 = {true, false, true, true};
+  std::vector<bool> offsets_is_valid4 = {true, true, false, true};
+
+  std::vector<bool> values_is_valid = {true, false, true, true, true, true};
+
+  std::vector<int32_t> offset1_values = {0, 2, 2, 6};
+  std::vector<int32_t> offset2_values = {0, 2, 6, 6};
+
+  std::vector<int8_t> values_values = {0, 1, 2, 3, 4, 5};
+  const int length = 3;
+
+  ArrayFromVector<Int32Type, int32_t>(offset1_values, &offsets1);
+  ArrayFromVector<Int32Type, int32_t>(offset2_values, &offsets2);
+
+  ArrayFromVector<Int32Type, int32_t>(offsets_is_valid3, offset1_values, &offsets3);
+  ArrayFromVector<Int32Type, int32_t>(offsets_is_valid4, offset2_values, &offsets4);
+
+  ArrayFromVector<Int8Type, int8_t>(values_is_valid, values_values, &values);
+
+  auto list_type = list(int8());
+
+  std::shared_ptr<Array> list1, list3, list4;
+  ASSERT_OK(ListArray::FromArrays(*offsets1, *values, pool_, &list1));
+  ASSERT_OK(ListArray::FromArrays(*offsets3, *values, pool_, &list3));
+  ASSERT_OK(ListArray::FromArrays(*offsets4, *values, pool_, &list4));
+
+  ListArray expected1(list_type, length, offsets1->data()->buffers[1], values,
+                      offsets1->data()->buffers[0], 0);
+  AssertArraysEqual(expected1, *list1);
+
+  // Use null bitmap from offsets3, but clean offsets from non-null version
+  ListArray expected3(list_type, length, offsets1->data()->buffers[1], values,
+                      offsets3->data()->buffers[0], 1);
+  AssertArraysEqual(expected3, *list3);
+
+  // Check that the last offset bit is zero
+  ASSERT_TRUE(BitUtil::BitNotSet(list3->null_bitmap()->data(), length + 1));
+
+  ListArray expected4(list_type, length, offsets2->data()->buffers[1], values,
+                      offsets4->data()->buffers[0], 1);
+  AssertArraysEqual(expected4, *list4);
+
+  // Test failure modes
+
+  std::shared_ptr<Array> tmp;
+
+  // Zero-length offsets
+  ASSERT_RAISES(Invalid,
+                ListArray::FromArrays(*offsets1->Slice(0, 0), *values, pool_, &tmp));
+
+  // Offsets not int32
+  ASSERT_RAISES(Invalid, ListArray::FromArrays(*values, *offsets1, pool_, &tmp));
+}
+
+TEST_F(TestListArray, TestAppendNull) {
   ASSERT_OK(builder_->AppendNull());
   ASSERT_OK(builder_->AppendNull());
 
@@ -1980,7 +2156,7 @@ void ValidateBasicListArray(const ListArray* result, const vector<int32_t>& valu
   }
 }
 
-TEST_F(TestListBuilder, TestBasics) {
+TEST_F(TestListArray, TestBasics) {
   vector<int32_t> values = {0, 1, 2, 3, 4, 5, 6};
   vector<int> lengths = {3, 0, 4};
   vector<uint8_t> is_valid = {1, 0, 1};
@@ -2002,7 +2178,7 @@ TEST_F(TestListBuilder, TestBasics) {
   ValidateBasicListArray(result_.get(), values, is_valid);
 }
 
-TEST_F(TestListBuilder, BulkAppend) {
+TEST_F(TestListArray, BulkAppend) {
   vector<int32_t> values = {0, 1, 2, 3, 4, 5, 6};
   vector<int> lengths = {3, 0, 4};
   vector<uint8_t> is_valid = {1, 0, 1};
@@ -2019,7 +2195,7 @@ TEST_F(TestListBuilder, BulkAppend) {
   ValidateBasicListArray(result_.get(), values, is_valid);
 }
 
-TEST_F(TestListBuilder, BulkAppendInvalid) {
+TEST_F(TestListArray, BulkAppendInvalid) {
   vector<int32_t> values = {0, 1, 2, 3, 4, 5, 6};
   vector<int> lengths = {3, 0, 4};
   vector<uint8_t> is_null = {0, 1, 0};
@@ -2039,7 +2215,7 @@ TEST_F(TestListBuilder, BulkAppendInvalid) {
   ASSERT_RAISES(Invalid, ValidateArray(*result_));
 }
 
-TEST_F(TestListBuilder, TestZeroLength) {
+TEST_F(TestListArray, TestZeroLength) {
   // All buffers are null
   Done();
   ASSERT_OK(ValidateArray(*result_));
@@ -2586,9 +2762,8 @@ class DecimalTest : public ::testing::TestWithParam<int> {
   template <size_t BYTE_WIDTH = 16>
   void TestCreate(int32_t precision, const DecimalVector& draw,
                   const std::vector<uint8_t>& valid_bytes, int64_t offset) const {
-    auto type = std::make_shared<DecimalType>(precision, 4);
-
-    auto builder = std::make_shared<DecimalBuilder>(type);
+    auto type = std::make_shared<Decimal128Type>(precision, 4);
+    auto builder = std::make_shared<Decimal128Builder>(type);
 
     size_t null_count = 0;
 
@@ -2619,7 +2794,7 @@ class DecimalTest : public ::testing::TestWithParam<int> {
         BitUtil::BytesToBits(valid_bytes, default_memory_pool(), &expected_null_bitmap));
 
     int64_t expected_null_count = test::null_count(valid_bytes);
-    auto expected = std::make_shared<DecimalArray>(
+    auto expected = std::make_shared<Decimal128Array>(
         type, size, expected_data, expected_null_bitmap, expected_null_count);
 
     std::shared_ptr<Array> lhs = out->Slice(offset);

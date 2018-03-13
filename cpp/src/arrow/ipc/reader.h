@@ -24,13 +24,12 @@
 #include <memory>
 
 #include "arrow/ipc/message.h"
-#include "arrow/table.h"
+#include "arrow/record_batch.h"
 #include "arrow/util/visibility.h"
 
 namespace arrow {
 
 class Buffer;
-class RecordBatch;
 class Schema;
 class Status;
 class Tensor;
@@ -48,41 +47,40 @@ using RecordBatchReader = ::arrow::RecordBatchReader;
 
 /// \class RecordBatchStreamReader
 /// \brief Synchronous batch stream reader that reads from io::InputStream
+///
+/// This class reads the schema (plus any dictionaries) as the first messages
+/// in the stream, followed by record batches. For more granular zero-copy
+/// reads see the ReadRecordBatch functions
 class ARROW_EXPORT RecordBatchStreamReader : public RecordBatchReader {
  public:
   virtual ~RecordBatchStreamReader();
 
   /// Create batch reader from generic MessageReader
   ///
-  /// \param(in) message_reader a MessageReader implementation
-  /// \param(out) out the created RecordBatchReader object
+  /// \param[in] message_reader a MessageReader implementation
+  /// \param[out] out the created RecordBatchReader object
   /// \return Status
   static Status Open(std::unique_ptr<MessageReader> message_reader,
                      std::shared_ptr<RecordBatchReader>* out);
-
-#ifndef ARROW_NO_DEPRECATED_API
-  /// \deprecated Since 0.7.0
-  static Status Open(std::unique_ptr<MessageReader> message_reader,
-                     std::shared_ptr<RecordBatchStreamReader>* out);
-
-  /// \deprecated Since 0.7.0
-  static Status Open(const std::shared_ptr<io::InputStream>& stream,
-                     std::shared_ptr<RecordBatchStreamReader>* out);
-#endif
 
   /// \brief Record batch stream reader from InputStream
   ///
-  /// \param(in) stream an input stream instance. Must stay alive throughout
+  /// \param[in] stream an input stream instance. Must stay alive throughout
   /// lifetime of stream reader
-  /// \param(out) out the created RecordBatchStreamReader object
+  /// \param[out] out the created RecordBatchStreamReader object
   /// \return Status
   static Status Open(io::InputStream* stream, std::shared_ptr<RecordBatchReader>* out);
 
-  /// \brief Version of Open that retains ownership of stream
+  /// \brief Open stream and retain ownership of stream object
+  /// \param[in] stream the input stream
+  /// \param[out] out the batch reader
+  /// \return Status
   static Status Open(const std::shared_ptr<io::InputStream>& stream,
                      std::shared_ptr<RecordBatchReader>* out);
 
+  /// \brief Returns the schema read from the stream
   std::shared_ptr<Schema> schema() const override;
+
   Status ReadNext(std::shared_ptr<RecordBatch>* batch) override;
 
  private:
@@ -98,11 +96,12 @@ class ARROW_EXPORT RecordBatchFileReader {
   ~RecordBatchFileReader();
 
   /// \brief Open a RecordBatchFileReader
-  // Open a file-like object that is assumed to be self-contained; i.e., the
-  // end of the file interface is the end of the Arrow file. Note that there
-  // can be any amount of data preceding the Arrow-formatted data, because we
-  // need only locate the end of the Arrow file stream to discover the metadata
-  // and then proceed to read the data into memory.
+  ///
+  /// Open a file-like object that is assumed to be self-contained; i.e., the
+  /// end of the file interface is the end of the Arrow file. Note that there
+  /// can be any amount of data preceding the Arrow-formatted data, because we
+  /// need only locate the end of the Arrow file stream to discover the metadata
+  /// and then proceed to read the data into memory.
   static Status Open(io::RandomAccessFile* file,
                      std::shared_ptr<RecordBatchFileReader>* reader);
 
@@ -112,34 +111,45 @@ class ARROW_EXPORT RecordBatchFileReader {
   /// metadata footer). The metadata must have been written with memory offsets
   /// relative to the start of the containing file
   ///
-  /// @param file: the data source
-  /// @param footer_offset: the position of the end of the Arrow "file"
+  /// \param[in] file the data source
+  /// \param[in] footer_offset the position of the end of the Arrow file
+  /// \param[out] reader the returned reader
+  /// \return Status
   static Status Open(io::RandomAccessFile* file, int64_t footer_offset,
                      std::shared_ptr<RecordBatchFileReader>* reader);
 
   /// \brief Version of Open that retains ownership of file
+  ///
+  /// \param[in] file the data source
+  /// \param[out] reader the returned reader
+  /// \return Status
   static Status Open(const std::shared_ptr<io::RandomAccessFile>& file,
                      std::shared_ptr<RecordBatchFileReader>* reader);
 
   /// \brief Version of Open that retains ownership of file
+  ///
+  /// \param[in] file the data source
+  /// \param[in] footer_offset the position of the end of the Arrow file
+  /// \param[out] reader the returned reader
+  /// \return Status
   static Status Open(const std::shared_ptr<io::RandomAccessFile>& file,
                      int64_t footer_offset,
                      std::shared_ptr<RecordBatchFileReader>* reader);
 
-  /// The schema includes any dictionaries
+  /// \brief The schema read from the file
   std::shared_ptr<Schema> schema() const;
 
-  /// Returns number of record batches in the file
+  /// \brief Returns the number of record batches in the file
   int num_record_batches() const;
 
-  /// Returns MetadataVersion in the file metadata
+  /// \brief Return the metadata version from the file metadata
   MetadataVersion version() const;
 
-  /// Read a record batch from the file. Does not copy memory if the input
-  /// source supports zero-copy.
+  /// \brief Read a particular record batch from the file. Does not copy memory
+  /// if the input source supports zero-copy.
   ///
-  /// \param(in) i the index of the record batch to return
-  /// \param(out) batch the read batch
+  /// \param[in] i the index of the record batch to return
+  /// \param[out] batch the read batch
   /// \return Status
   Status ReadRecordBatch(int i, std::shared_ptr<RecordBatch>* batch);
 
@@ -152,10 +162,12 @@ class ARROW_EXPORT RecordBatchFileReader {
 
 // Generic read functions; does not copy data if the input supports zero copy reads
 
-/// \brief Read Schema from stream serialized as a sequence of IPC messages
+/// \brief Read Schema from stream serialized as a sequence of one or more IPC
+/// messages
 ///
 /// \param[in] stream an InputStream
 /// \param[out] out the output Schema
+/// \return Status
 ///
 /// If record batches follow the schema, it is better to use
 /// RecordBatchStreamReader
@@ -165,28 +177,29 @@ Status ReadSchema(io::InputStream* stream, std::shared_ptr<Schema>* out);
 /// Read record batch as encapsulated IPC message with metadata size prefix and
 /// header
 ///
-/// \param(in) schema the record batch schema
-/// \param(in) offset the file location of the start of the message
-/// \param(in) file the file where the batch is located
-/// \param(out) out the read record batch
+/// \param[in] schema the record batch schema
+/// \param[in] stream the file where the batch is located
+/// \param[out] out the read record batch
+/// \return Status
 ARROW_EXPORT
 Status ReadRecordBatch(const std::shared_ptr<Schema>& schema, io::InputStream* stream,
                        std::shared_ptr<RecordBatch>* out);
 
 /// \brief Read record batch from file given metadata and schema
 ///
-/// \param(in) metadata a Message containing the record batch metadata
-/// \param(in) schema the record batch schema
-/// \param(in) file a random access file
-/// \param(out) out the read record batch
+/// \param[in] metadata a Message containing the record batch metadata
+/// \param[in] schema the record batch schema
+/// \param[in] file a random access file
+/// \param[out] out the read record batch
+/// \return Status
 ARROW_EXPORT
 Status ReadRecordBatch(const Buffer& metadata, const std::shared_ptr<Schema>& schema,
                        io::RandomAccessFile* file, std::shared_ptr<RecordBatch>* out);
 
-/// \brief Read record batch from fully encapulated Message
+/// \brief Read record batch from encapulated Message
 ///
 /// \param[in] message a message instance containing metadata and body
-/// \param[in] schema
+/// \param[in] schema the record batch schema
 /// \param[out] out the resulting RecordBatch
 /// \return Status
 ARROW_EXPORT
@@ -195,33 +208,34 @@ Status ReadRecordBatch(const Message& message, const std::shared_ptr<Schema>& sc
 
 /// Read record batch from file given metadata and schema
 ///
-/// \param(in) metadata a Message containing the record batch metadata
-/// \param(in) schema the record batch schema
-/// \param(in) file a random access file
-/// \param(in) max_recursion_depth the maximum permitted nesting depth
-/// \param(out) out the read record batch
+/// \param[in] metadata a Message containing the record batch metadata
+/// \param[in] schema the record batch schema
+/// \param[in] file a random access file
+/// \param[in] max_recursion_depth the maximum permitted nesting depth
+/// \param[out] out the read record batch
+/// \return Status
 ARROW_EXPORT
 Status ReadRecordBatch(const Buffer& metadata, const std::shared_ptr<Schema>& schema,
                        int max_recursion_depth, io::RandomAccessFile* file,
                        std::shared_ptr<RecordBatch>* out);
 
-/// EXPERIMENTAL: Read arrow::Tensor as encapsulated IPC message in file
+/// \brief EXPERIMENTAL: Read arrow::Tensor as encapsulated IPC message in file
 ///
-/// \param(in) offset the file location of the start of the message
-/// \param(in) file the file where the batch is located
-/// \param(out) out the read tensor
+/// \param[in] offset the file location of the start of the message
+/// \param[in] file the file where the batch is located
+/// \param[out] out the read tensor
+/// \return Status
 ARROW_EXPORT
 Status ReadTensor(int64_t offset, io::RandomAccessFile* file,
                   std::shared_ptr<Tensor>* out);
 
-#ifndef ARROW_NO_DEPRECATED_API
-/// \deprecated Since 0.7.0
+/// \brief EXPERIMENTAL: Read arrow::Tensor from IPC message
 ///
-/// Deprecated in favor of more general InputStream-based API
+/// \param[in] message a Message containing the tensor metadata and body
+/// \param[out] out the read tensor
+/// \return Status
 ARROW_EXPORT
-Status ReadRecordBatch(const std::shared_ptr<Schema>& schema, int64_t offset,
-                       io::RandomAccessFile* stream, std::shared_ptr<RecordBatch>* out);
-#endif
+Status ReadTensor(const Message& message, std::shared_ptr<Tensor>* out);
 
 }  // namespace ipc
 }  // namespace arrow

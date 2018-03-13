@@ -121,8 +121,8 @@ class ARROW_EXPORT HadoopFileSystem : public FileSystem {
   /// Change
   ///
   /// @param path file path to change
-  /// @param owner pass nullptr for no change
-  /// @param group pass nullptr for no change
+  /// @param owner pass null for no change
+  /// @param group pass null for no change
   Status Chown(const std::string& path, const char* owner, const char* group);
 
   /// Change path permissions
@@ -172,11 +172,6 @@ class ARROW_EXPORT HadoopFileSystem : public FileSystem {
   ARROW_DISALLOW_COPY_AND_ASSIGN(HadoopFileSystem);
 };
 
-#ifndef ARROW_NO_DEPRECATED_API
-/// \deprecated Since 0.6.0
-using HdfsClient = HadoopFileSystem;
-#endif
-
 class ARROW_EXPORT HdfsReadableFile : public RandomAccessFile {
  public:
   ~HdfsReadableFile();
@@ -187,12 +182,12 @@ class ARROW_EXPORT HdfsReadableFile : public RandomAccessFile {
 
   // NOTE: If you wish to read a particular range of a file in a multithreaded
   // context, you may prefer to use ReadAt to avoid locking issues
-  Status Read(int64_t nbytes, int64_t* bytes_read, uint8_t* buffer) override;
+  Status Read(int64_t nbytes, int64_t* bytes_read, void* buffer) override;
 
   Status Read(int64_t nbytes, std::shared_ptr<Buffer>* out) override;
 
   Status ReadAt(int64_t position, int64_t nbytes, int64_t* bytes_read,
-                uint8_t* buffer) override;
+                void* buffer) override;
 
   Status ReadAt(int64_t position, int64_t nbytes, std::shared_ptr<Buffer>* out) override;
 
@@ -204,7 +199,7 @@ class ARROW_EXPORT HdfsReadableFile : public RandomAccessFile {
   void set_memory_pool(MemoryPool* pool);
 
  private:
-  explicit HdfsReadableFile(MemoryPool* pool = nullptr);
+  explicit HdfsReadableFile(MemoryPool* pool = NULLPTR);
 
   class ARROW_NO_EXPORT HdfsReadableFileImpl;
   std::unique_ptr<HdfsReadableFileImpl> impl_;
@@ -222,9 +217,9 @@ class ARROW_EXPORT HdfsOutputStream : public OutputStream {
 
   Status Close() override;
 
-  Status Write(const uint8_t* buffer, int64_t nbytes) override;
+  Status Write(const void* buffer, int64_t nbytes) override;
 
-  Status Write(const uint8_t* buffer, int64_t nbytes, int64_t* bytes_written);
+  Status Write(const void* buffer, int64_t nbytes, int64_t* bytes_written);
 
   Status Flush() override;
 

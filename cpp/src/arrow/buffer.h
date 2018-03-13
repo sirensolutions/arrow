@@ -47,8 +47,24 @@ class MemoryPool;
 /// The following invariant is always true: Size < Capacity
 class ARROW_EXPORT Buffer {
  public:
+  /// \brief Construct from buffer and size without copying memory
+  ///
+  /// \param[in] data a memory buffer
+  /// \param[in] size buffer size
+  ///
+  /// \note The passed memory must be kept alive through some other means
   Buffer(const uint8_t* data, int64_t size)
       : is_mutable_(false), data_(data), size_(size), capacity_(size) {}
+
+  /// \brief Construct from std::string without copying memory
+  ///
+  /// \param[in] data a std::string object
+  ///
+  /// \note The std::string must stay alive for the lifetime of the Buffer, so
+  /// temporary rvalue strings must be stored in an lvalue somewhere
+  explicit Buffer(const std::string& data)
+      : Buffer(reinterpret_cast<const uint8_t*>(data.c_str()),
+               static_cast<int64_t>(data.size())) {}
 
   virtual ~Buffer() = default;
 
@@ -69,6 +85,8 @@ class ARROW_EXPORT Buffer {
   /// Return true if both buffers are the same size and contain the same bytes
   /// up to the number of compared bytes
   bool Equals(const Buffer& other, int64_t nbytes) const;
+
+  /// Return true if both buffers are the same size and contain the same bytes
   bool Equals(const Buffer& other) const;
 
   /// Copy a section of the buffer into a new Buffer.
@@ -94,23 +112,12 @@ class ARROW_EXPORT Buffer {
   int64_t size_;
   int64_t capacity_;
 
-  // nullptr by default, but may be set
+  // null by default, but may be set
   std::shared_ptr<Buffer> parent_;
 
  private:
   ARROW_DISALLOW_COPY_AND_ASSIGN(Buffer);
 };
-
-/// \brief Create Buffer referencing std::string memory
-///
-/// Warning: string instance must stay alive
-///
-/// \param str std::string instance
-/// \return std::shared_ptr<Buffer>
-static inline std::shared_ptr<Buffer> GetBufferFromString(const std::string& str) {
-  return std::make_shared<Buffer>(reinterpret_cast<const uint8_t*>(str.c_str()),
-                                  static_cast<int64_t>(str.size()));
-}
 
 /// Construct a view on passed buffer at the indicated offset and length. This
 /// function cannot fail and does not error checking (except in debug builds)
@@ -138,7 +145,7 @@ class ARROW_EXPORT MutableBuffer : public Buffer {
                 const int64_t size);
 
  protected:
-  MutableBuffer() : Buffer(nullptr, 0) {}
+  MutableBuffer() : Buffer(NULLPTR, 0) {}
 };
 
 class ARROW_EXPORT ResizableBuffer : public MutableBuffer {
@@ -173,7 +180,7 @@ class ARROW_EXPORT ResizableBuffer : public MutableBuffer {
 /// A Buffer whose lifetime is tied to a particular MemoryPool
 class ARROW_EXPORT PoolBuffer : public ResizableBuffer {
  public:
-  explicit PoolBuffer(MemoryPool* pool = nullptr);
+  explicit PoolBuffer(MemoryPool* pool = NULLPTR);
   virtual ~PoolBuffer();
 
   Status Resize(const int64_t new_size, bool shrink_to_fit = true) override;
@@ -186,7 +193,7 @@ class ARROW_EXPORT PoolBuffer : public ResizableBuffer {
 class ARROW_EXPORT BufferBuilder {
  public:
   explicit BufferBuilder(MemoryPool* pool)
-      : pool_(pool), data_(nullptr), capacity_(0), size_(0) {}
+      : pool_(pool), data_(NULLPTR), capacity_(0), size_(0) {}
 
   /// Resizes the buffer to the nearest multiple of 64 bytes per Layout.md
   Status Resize(const int64_t elements) {
@@ -194,7 +201,7 @@ class ARROW_EXPORT BufferBuilder {
     if (elements == 0) {
       return Status::OK();
     }
-    if (capacity_ == 0) {
+    if (buffer_ == NULLPTR) {
       buffer_ = std::make_shared<PoolBuffer>(pool_);
     }
     int64_t old_capacity = capacity_;
@@ -257,7 +264,7 @@ class ARROW_EXPORT BufferBuilder {
   }
 
   void Reset() {
-    buffer_ = nullptr;
+    buffer_ = NULLPTR;
     capacity_ = size_ = 0;
   }
 
@@ -331,11 +338,20 @@ Status AllocateResizableBuffer(MemoryPool* pool, const int64_t size,
                                std::shared_ptr<ResizableBuffer>* out);
 
 #ifndef ARROW_NO_DEPRECATED_API
-/// \deprecated Since 0.7.0
-ARROW_EXPORT
-Status AllocateBuffer(MemoryPool* pool, const int64_t size,
-                      std::shared_ptr<MutableBuffer>* out);
-#endif
+
+/// \brief Create Buffer referencing std::string memory
+///
+/// Warning: string instance must stay alive
+///
+/// \param str std::string instance
+/// \return std::shared_ptr<Buffer>
+///
+/// \note Deprecated Since 0.8.0
+static inline std::shared_ptr<Buffer> GetBufferFromString(const std::string& str) {
+  return std::make_shared<Buffer>(str);
+}
+
+#endif  // ARROW_NO_DEPRECATED_API
 
 }  // namespace arrow
 

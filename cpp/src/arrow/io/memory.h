@@ -22,7 +22,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <mutex>
 
 #include "arrow/io/interfaces.h"
 #include "arrow/util/visibility.h"
@@ -44,12 +43,12 @@ class ARROW_EXPORT BufferOutputStream : public OutputStream {
   static Status Create(int64_t initial_capacity, MemoryPool* pool,
                        std::shared_ptr<BufferOutputStream>* out);
 
-  ~BufferOutputStream();
+  ~BufferOutputStream() override;
 
   // Implement the OutputStream interface
   Status Close() override;
   Status Tell(int64_t* position) const override;
-  Status Write(const uint8_t* data, int64_t nbytes) override;
+  Status Write(const void* data, int64_t nbytes) override;
 
   /// Close the stream and return the buffer
   Status Finish(std::shared_ptr<Buffer>* result);
@@ -73,7 +72,7 @@ class ARROW_EXPORT MockOutputStream : public OutputStream {
   // Implement the OutputStream interface
   Status Close() override;
   Status Tell(int64_t* position) const override;
-  Status Write(const uint8_t* data, int64_t nbytes) override;
+  Status Write(const void* data, int64_t nbytes) override;
 
   int64_t GetExtentBytesWritten() const { return extent_bytes_written_; }
 
@@ -86,28 +85,21 @@ class ARROW_EXPORT FixedSizeBufferWriter : public WriteableFile {
  public:
   /// Input buffer must be mutable, will abort if not
   explicit FixedSizeBufferWriter(const std::shared_ptr<Buffer>& buffer);
-  ~FixedSizeBufferWriter();
+  ~FixedSizeBufferWriter() override;
 
   Status Close() override;
   Status Seek(int64_t position) override;
   Status Tell(int64_t* position) const override;
-  Status Write(const uint8_t* data, int64_t nbytes) override;
-  Status WriteAt(int64_t position, const uint8_t* data, int64_t nbytes) override;
+  Status Write(const void* data, int64_t nbytes) override;
+  Status WriteAt(int64_t position, const void* data, int64_t nbytes) override;
 
   void set_memcopy_threads(int num_threads);
   void set_memcopy_blocksize(int64_t blocksize);
   void set_memcopy_threshold(int64_t threshold);
 
  protected:
-  std::mutex lock_;
-  std::shared_ptr<Buffer> buffer_;
-  uint8_t* mutable_data_;
-  int64_t size_;
-  int64_t position_;
-
-  int memcopy_num_threads_;
-  int64_t memcopy_blocksize_;
-  int64_t memcopy_threshold_;
+  class FixedSizeBufferWriterImpl;
+  std::unique_ptr<FixedSizeBufferWriterImpl> impl_;
 };
 
 /// \class BufferReader
@@ -115,15 +107,20 @@ class ARROW_EXPORT FixedSizeBufferWriter : public WriteableFile {
 class ARROW_EXPORT BufferReader : public RandomAccessFile {
  public:
   explicit BufferReader(const std::shared_ptr<Buffer>& buffer);
+  explicit BufferReader(const Buffer& buffer);
   BufferReader(const uint8_t* data, int64_t size);
-  virtual ~BufferReader();
 
   Status Close() override;
   Status Tell(int64_t* position) const override;
-  Status Read(int64_t nbytes, int64_t* bytes_read, uint8_t* buffer) override;
+  Status Read(int64_t nbytes, int64_t* bytes_read, void* buffer) override;
 
   // Zero copy read
   Status Read(int64_t nbytes, std::shared_ptr<Buffer>* out) override;
+  Status ReadAt(int64_t position, int64_t nbytes, int64_t* bytes_read,
+                void* out) override;
+
+  /// Default implementation is thread-safe
+  Status ReadAt(int64_t position, int64_t nbytes, std::shared_ptr<Buffer>* out) override;
 
   Status GetSize(int64_t* size) override;
   Status Seek(int64_t position) override;

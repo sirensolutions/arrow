@@ -22,7 +22,8 @@ import threading
 
 import numpy as np
 
-from pandas.util.testing import assert_frame_equal
+from pandas.util.testing import (assert_frame_equal,
+                                 assert_series_equal)
 import pandas as pd
 
 from pyarrow.compat import unittest
@@ -146,6 +147,49 @@ class TestStream(MessagingTest, unittest.TestCase):
         table = (pa.open_stream(pa.BufferReader(self._get_source()))
                  .read_all())
         assert_frame_equal(table.to_pandas(), df)
+
+    def test_stream_write_dispatch(self):
+        # ARROW-1616
+        df = pd.DataFrame({
+            'one': np.random.randn(5),
+            'two': pd.Categorical(['foo', np.nan, 'bar', 'foo', 'foo'],
+                                  categories=['foo', 'bar'],
+                                  ordered=True)
+        })
+        table = pa.Table.from_pandas(df, preserve_index=False)
+        batch = pa.RecordBatch.from_pandas(df, preserve_index=False)
+        writer = self._get_writer(self.sink, table.schema)
+        writer.write(table)
+        writer.write(batch)
+        writer.close()
+
+        table = (pa.open_stream(pa.BufferReader(self._get_source()))
+                 .read_all())
+        assert_frame_equal(table.to_pandas(),
+                           pd.concat([df, df], ignore_index=True))
+
+    def test_stream_write_table_batches(self):
+        # ARROW-504
+        df = pd.DataFrame({
+            'one': np.random.randn(20),
+        })
+
+        b1 = pa.RecordBatch.from_pandas(df[:10], preserve_index=False)
+        b2 = pa.RecordBatch.from_pandas(df, preserve_index=False)
+
+        table = pa.Table.from_batches([b1, b2, b1])
+
+        writer = self._get_writer(self.sink, table.schema)
+        writer.write_table(table, chunksize=15)
+        writer.close()
+
+        batches = list(pa.open_stream(pa.BufferReader(self._get_source())))
+
+        assert list(map(len, batches)) == [10, 15, 5, 10]
+        result_table = pa.Table.from_batches(batches)
+        assert_frame_equal(result_table.to_pandas(),
+                           pd.concat([df[:10], df, df[:10]],
+                                     ignore_index=True))
 
     def test_simple_roundtrip(self):
         _, batches = self.write_batches()
@@ -344,6 +388,12 @@ def test_get_record_batch_size():
     assert pa.get_record_batch_size(batch) > (N * itemsize)
 
 
+def _check_serialize_pandas_round_trip(df, nthreads=1):
+    buf = pa.serialize_pandas(df, nthreads=nthreads)
+    result = pa.deserialize_pandas(buf, nthreads=nthreads)
+    assert_frame_equal(result, df)
+
+
 def test_pandas_serialize_round_trip():
     index = pd.Index([1, 2, 3], name='my_index')
     columns = ['foo', 'bar']
@@ -351,9 +401,7 @@ def test_pandas_serialize_round_trip():
         {'foo': [1.5, 1.6, 1.7], 'bar': list('abc')},
         index=index, columns=columns
     )
-    buf = pa.serialize_pandas(df)
-    result = pa.deserialize_pandas(buf)
-    assert_frame_equal(result, df)
+    _check_serialize_pandas_round_trip(df)
 
 
 def test_pandas_serialize_round_trip_nthreads():
@@ -363,9 +411,7 @@ def test_pandas_serialize_round_trip_nthreads():
         {'foo': [1.5, 1.6, 1.7], 'bar': list('abc')},
         index=index, columns=columns
     )
-    buf = pa.serialize_pandas(df)
-    result = pa.deserialize_pandas(buf, nthreads=2)
-    assert_frame_equal(result, df)
+    _check_serialize_pandas_round_trip(df, nthreads=2)
 
 
 def test_pandas_serialize_round_trip_multi_index():
@@ -379,20 +425,53 @@ def test_pandas_serialize_round_trip_multi_index():
         index=index,
         columns=columns,
     )
-    buf = pa.serialize_pandas(df)
-    result = pa.deserialize_pandas(buf)
-    assert_frame_equal(result, df)
+    _check_serialize_pandas_round_trip(df)
 
 
-@pytest.mark.xfail(
-    raises=AssertionError,
-    reason='Non string columns are not supported',
-)
+def test_serialize_pandas_empty_dataframe():
+    df = pd.DataFrame()
+    _check_serialize_pandas_round_trip(df)
+
+
 def test_pandas_serialize_round_trip_not_string_columns():
     df = pd.DataFrame(list(zip([1.5, 1.6, 1.7], 'abc')))
     buf = pa.serialize_pandas(df)
     result = pa.deserialize_pandas(buf)
     assert_frame_equal(result, df)
+
+
+def test_serialize_pandas_no_preserve_index():
+    df = pd.DataFrame({'a': [1, 2, 3]}, index=[1, 2, 3])
+    expected = pd.DataFrame({'a': [1, 2, 3]})
+
+    buf = pa.serialize_pandas(df, preserve_index=False)
+    result = pa.deserialize_pandas(buf)
+    assert_frame_equal(result, expected)
+
+    buf = pa.serialize_pandas(df, preserve_index=True)
+    result = pa.deserialize_pandas(buf)
+    assert_frame_equal(result, df)
+
+
+def test_serialize_with_pandas_objects():
+    df = pd.DataFrame({'a': [1, 2, 3]}, index=[1, 2, 3])
+    s = pd.Series([1, 2, 3, 4])
+
+    data = {
+        'a_series': df['a'],
+        'a_frame': df,
+        's_series': s
+    }
+
+    serialized = pa.serialize(data).to_buffer()
+    deserialized = pa.deserialize(serialized)
+    assert_frame_equal(deserialized['a_frame'], df)
+
+    assert_series_equal(deserialized['a_series'], df['a'])
+    assert deserialized['a_series'].name == 'a'
+
+    assert_series_equal(deserialized['s_series'], s)
+    assert deserialized['s_series'].name is None
 
 
 def test_schema_batch_serialize_methods():
