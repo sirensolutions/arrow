@@ -60,6 +60,10 @@ public class PooledByteBufAllocatorL {
 
   }
 
+  public String dump() {
+    return allocator.toString();
+  }
+
   public int getChunkSize() {
     return allocator.chunkSize;
   }
