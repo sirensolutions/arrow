@@ -21,6 +21,20 @@
 
 The property `drill.enable_unsafe_memory_access` is prefixed with `siren` and its default value is set to `true`.
 
+## Build
+
+To build the memory bundle:
+
+```sh
+$ cd java
+$ mvn clean package -pl memory
+```
+
+To deploy:
+
+```sh
+$ mvn deploy -Dmaven.test.skip=true -pl memory -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
+
 # Apache Arrow
 
 [![Build Status](https://travis-ci.org/apache/arrow.svg?branch=master)](https://travis-ci.org/apache/arrow)
