@@ -18,7 +18,13 @@
 
 package org.apache.arrow.memory;
 
-import static org.apache.arrow.memory.BaseAllocator.indent;
+import com.google.common.base.Preconditions;
+import io.netty.buffer.ArrowBuf;
+import io.netty.buffer.PooledByteBufAllocatorL;
+import io.netty.buffer.UnsafeDirectLittleEndian;
+import org.apache.arrow.memory.BaseAllocator.Verbosity;
+import org.apache.arrow.memory.util.AutoCloseableLock;
+import org.apache.arrow.memory.util.HistoricalLog;
 
 import java.util.IdentityHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,15 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.arrow.memory.BaseAllocator.Verbosity;
-import org.apache.arrow.memory.util.AutoCloseableLock;
-import org.apache.arrow.memory.util.HistoricalLog;
-
-import com.google.common.base.Preconditions;
-
-import io.netty.buffer.ArrowBuf;
-import io.netty.buffer.PooledByteBufAllocatorL;
-import io.netty.buffer.UnsafeDirectLittleEndian;
+import static org.apache.arrow.memory.BaseAllocator.indent;
 
 /**
  * Manages the relationship between one or more allocators and a particular UDLE. Ensures that
@@ -97,6 +95,10 @@ public class AllocationManager {
     // reference count at that point
     this.owningLedger = associate(accountingAllocator, false);
     this.size = underlying.capacity();
+  }
+
+  public static String dumpInnerAllocator() {
+    return INNER_ALLOCATOR.dump();
   }
 
   /**
