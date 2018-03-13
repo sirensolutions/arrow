@@ -21,7 +21,7 @@
   <name>Arrow Memory</name>
   <packaging>pom</packaging>
   <properties>
-    <netty.version>siren-4.0.49.Final</netty.version>
+    <netty.version>siren-4.1.17.Final</netty.version>
   </properties>
 
   <modules>
