@@ -21,6 +21,9 @@ import re
 import sys
 import warnings
 
+from pyarrow import compat
+from pyarrow.compat import builtin_pickle
+
 
 # These are imprecise because the type (in pandas 0.x) depends on the presence
 # of nulls
@@ -382,6 +385,12 @@ cdef class StructType(DataType):
     cdef void init(self, const shared_ptr[CDataType]& type) except *:
         DataType.init(self, type)
         self.struct_type = <const CStructType*> type.get()
+
+    cdef Field field(self, int i):
+        """
+        Return a child field by its index.
+        """
+        return self.child(i)
 
     cdef Field field_by_name(self, name):
         """

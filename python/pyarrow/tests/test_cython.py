@@ -23,6 +23,7 @@ import sys
 import pytest
 
 import pyarrow as pa
+
 import pyarrow.tests.util as test_util
 
 

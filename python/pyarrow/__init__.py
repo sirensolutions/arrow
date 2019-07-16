@@ -194,13 +194,20 @@ from pyarrow.lib import (ArrowCancelled,
 from pyarrow.lib import (deserialize_from, deserialize,
                          deserialize_components,
                          serialize, serialize_to, read_serialized,
+                         SerializedPyObject, SerializationContext,
                          SerializationCallbackError,
                          DeserializationCallbackError)
 
+from pyarrow.filesystem import FileSystem, LocalFileSystem
+
+from pyarrow.hdfs import HadoopFileSystem
 import pyarrow.hdfs as hdfs
 
 from pyarrow.ipc import serialize_pandas, deserialize_pandas
 import pyarrow.ipc as ipc
+
+
+localfs = LocalFileSystem.get_instance()
 
 from pyarrow.serialization import (default_serialization_context,
                                    register_default_serialization_handlers,
