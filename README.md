@@ -34,6 +34,7 @@ To deploy:
 
 ```sh
 $ mvn deploy -Dmaven.test.skip=true -pl memory -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
+```
 
 # Apache Arrow
 
