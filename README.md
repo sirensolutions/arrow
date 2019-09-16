@@ -19,7 +19,8 @@
 
 # Siren fork of Arrow
 
-The property `drill.enable_unsafe_memory_access` is prefixed with `siren` and its default value is set to `true`.
+- The property `drill.enable_unsafe_memory_access` is prefixed with `siren` and its default value is set to `true`.
+- The Siren's fork of netty is used.
 
 ## Build
 
