@@ -103,10 +103,6 @@ public class AllocationManager {
     return INNER_ALLOCATOR.dump();
   }
 
-  public static String dumpInnerAllocator() {
-    return INNER_ALLOCATOR.dump();
-  }
-
   /**
    * Associate the existing underlying buffer with a new allocator. This will increase the
    * reference count on the corresponding buffer ledger by 1
