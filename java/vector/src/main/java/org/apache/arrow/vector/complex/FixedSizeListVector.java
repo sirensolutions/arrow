@@ -1,14 +1,13 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,17 +20,24 @@ package org.apache.arrow.vector.complex;
 import static java.util.Collections.singletonList;
 import static org.apache.arrow.vector.complex.BaseRepeatedValueVector.DATA_VECTOR_NAME;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ObjectArrays;
-
-import io.netty.buffer.ArrowBuf;
 import org.apache.arrow.memory.BaseAllocator;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.OutOfMemoryException;
-import org.apache.arrow.vector.*;
+import org.apache.arrow.util.Preconditions;
+import org.apache.arrow.vector.AddOrGetResult;
+import org.apache.arrow.vector.BaseValueVector;
+import org.apache.arrow.vector.BitVectorHelper;
+import org.apache.arrow.vector.BufferBacked;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.ValueVector;
+import org.apache.arrow.vector.ZeroVector;
 import org.apache.arrow.vector.complex.impl.UnionFixedSizeListReader;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.Types.MinorType;
@@ -39,8 +45,15 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.DictionaryEncoding;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.arrow.vector.util.*;
+import org.apache.arrow.vector.util.CallBack;
+import org.apache.arrow.vector.util.JsonStringArrayList;
+import org.apache.arrow.vector.util.OversizedAllocationException;
+import org.apache.arrow.vector.util.SchemaChangeRuntimeException;
+import org.apache.arrow.vector.util.TransferPair;
 
+import siren.io.netty.buffer.ArrowBuf;
+
+/** A ListVector where every list value is of the same size. */
 public class FixedSizeListVector extends BaseValueVector implements FieldVector, PromotableVector {
 
   public static FixedSizeListVector empty(String name, int size, BufferAllocator allocator) {
@@ -57,7 +70,9 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
   private int valueCount;
   private int validityAllocationSizeInBytes;
 
-  // deprecated, use FieldType or static constructor instead
+  /**
+   * @deprecated use FieldType or static constructor instead.
+   */
   @Deprecated
   public FixedSizeListVector(String name,
                              BufferAllocator allocator,
@@ -67,11 +82,20 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
     this(name, allocator, new FieldType(true, new ArrowType.FixedSizeList(listSize), dictionary), schemaChangeCallback);
   }
 
+  /**
+   * Creates a new instance.
+   *
+   * @param name The name for the vector.
+   * @param allocator The allocator to use for creating/reallocating buffers for the vector.
+   * @param fieldType The underlying data type of the vector.
+   * @param unusedSchemaChangeCallback Currently unused.
+   */
   public FixedSizeListVector(String name,
                              BufferAllocator allocator,
                              FieldType fieldType,
-                             CallBack schemaChangeCallback) {
+                             CallBack unusedSchemaChangeCallback) {
     super(name, allocator);
+
     this.validityBuffer = allocator.getEmpty();
     this.vector = ZeroVector.INSTANCE;
     this.fieldType = fieldType;
@@ -84,7 +108,7 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
 
   @Override
   public Field getField() {
-    List<Field> children = ImmutableList.of(getDataVector().getField());
+    List<Field> children = Collections.singletonList(getDataVector().getField());
     return new Field(name, fieldType, children);
   }
 
@@ -93,6 +117,7 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
     return MinorType.FIXED_SIZE_LIST;
   }
 
+  /** Get the fixed size for each list. */
   public int getListSize() {
     return listSize;
   }
@@ -123,7 +148,7 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
 
     ArrowBuf bitBuffer = ownBuffers.get(0);
 
-    validityBuffer.release();
+    validityBuffer.getReferenceManager().release();
     validityBuffer = BitVectorHelper.loadValidityBuffer(fieldNode, bitBuffer, allocator);
     valueCount = fieldNode.getLength();
 
@@ -210,15 +235,16 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
 
     long newAllocationSize = baseSize * 2L;
     newAllocationSize = BaseAllocator.nextPowerOfTwo(newAllocationSize);
+    assert newAllocationSize >= 1;
 
     if (newAllocationSize > MAX_ALLOCATION_SIZE) {
       throw new OversizedAllocationException("Unable to expand the buffer");
     }
 
     final ArrowBuf newBuf = allocator.buffer((int) newAllocationSize);
-    newBuf.setZero(0, newBuf.capacity());
     newBuf.setBytes(0, validityBuffer, 0, currentBufferCapacity);
-    validityBuffer.release(1);
+    newBuf.setZero(currentBufferCapacity, newBuf.capacity() - currentBufferCapacity);
+    validityBuffer.getReferenceManager().release(1);
     validityBuffer = newBuf;
     validityAllocationSizeInBytes = (int) newAllocationSize;
   }
@@ -272,18 +298,27 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
   }
 
   @Override
+  public void reset() {
+    validityBuffer.setZero(0, validityBuffer.capacity());
+    vector.reset();
+    valueCount = 0;
+  }
+
+  @Override
   public ArrowBuf[] getBuffers(boolean clear) {
     setReaderAndWriterIndex();
     final ArrowBuf[] buffers;
     if (getBufferSize() == 0) {
       buffers = new ArrowBuf[0];
     } else {
-      buffers = ObjectArrays.concat(new ArrowBuf[]{validityBuffer}, vector.getBuffers(false),
-              ArrowBuf.class);
+      List<ArrowBuf> list = new ArrayList<>();
+      list.add(validityBuffer);
+      list.addAll(Arrays.asList(vector.getBuffers(false)));
+      buffers = list.toArray(new ArrowBuf[list.size()]);
     }
     if (clear) {
       for (ArrowBuf buffer : buffers) {
-        buffer.retain();
+        buffer.getReferenceManager().retain();
       }
       clear();
     }
@@ -291,6 +326,7 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
   }
 
   /**
+   * Get value indicating if inner vector is set.
    * @return 1 if inner vector is explicitly set via #addOrGetVector else 0
    */
   public int size() {
@@ -376,15 +412,21 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
     return vals;
   }
 
+  /**
+   * Returns whether the value at index null.
+   */
   public boolean isNull(int index) {
     return (isSet(index) == 0);
   }
 
+  /**
+   * Returns non-zero when the value at index is non-null.
+   */
   public int isSet(int index) {
     final int byteIndex = index >> 3;
     final byte b = validityBuffer.getByte(byteIndex);
     final int bitIndex = index & 7;
-    return Long.bitCount(b & (1L << bitIndex));
+    return (b >> bitIndex) & 0x01;
   }
 
   @Override
@@ -397,10 +439,17 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
     return valueCount;
   }
 
+  /**
+   * Returns the number of elements the validity buffer can represent with its
+   * current capacity.
+   */
   private int getValidityBufferValueCapacity() {
-    return (int) (validityBuffer.capacity() * 8L);
+    return validityBuffer.capacity() * 8;
   }
 
+  /**
+   * Sets the value at index to null.  Reallocates if index is larger than capacity.
+   */
   public void setNull(int index) {
     while (index >= getValidityBufferValueCapacity()) {
       reallocValidityBuffer();
@@ -408,6 +457,7 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
     BitVectorHelper.setValidityBit(validityBuffer, index, 0);
   }
 
+  /** Sets the value at index to not-null. Reallocates if index is larger than capacity. */
   public void setNotNull(int index) {
     while (index >= getValidityBufferValueCapacity()) {
       reallocValidityBuffer();
@@ -458,7 +508,7 @@ public class FixedSizeListVector extends BaseValueVector implements FieldVector,
     public void transfer() {
       to.clear();
       dataPair.transfer();
-      to.validityBuffer = validityBuffer.transferOwnership(to.allocator).buffer;
+      to.validityBuffer = BaseValueVector.transferBuffer(validityBuffer, to.allocator);
       to.setValueCount(valueCount);
       clear();
     }

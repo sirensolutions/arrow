@@ -17,7 +17,9 @@
 
 from cpython.ref cimport PyObject
 
-from pyarrow.compat import pickle
+import six
+
+from pyarrow.compat import frombytes, pickle
 
 
 def is_named_tuple(cls):
@@ -28,7 +30,7 @@ def is_named_tuple(cls):
     f = getattr(cls, "_fields", None)
     if not isinstance(f, tuple):
         return False
-    return all(type(n) == str for n in f)
+    return all(isinstance(n, six.string_types) for n in f)
 
 
 class SerializationCallbackError(ArrowSerializationError):
@@ -47,15 +49,36 @@ cdef class SerializationContext:
     cdef:
         object type_to_type_id
         object whitelisted_types
+        object types_to_pickle
         object custom_serializers
         object custom_deserializers
+        object pickle_serializer
+        object pickle_deserializer
 
     def __init__(self):
         # Types with special serialization handlers
         self.type_to_type_id = dict()
         self.whitelisted_types = dict()
+        self.types_to_pickle = set()
         self.custom_serializers = dict()
         self.custom_deserializers = dict()
+        self.pickle_serializer = pickle.dumps
+        self.pickle_deserializer = pickle.loads
+
+    def set_pickle(self, serializer, deserializer):
+        """
+        Set the serializer and deserializer to use for objects that are to be
+        pickled.
+
+        Parameters
+        ----------
+        serializer : callable
+            The serializer to use (e.g., pickle.dumps or cloudpickle.dumps).
+        deserializer : callable
+            The deserializer to use (e.g., pickle.dumps or cloudpickle.dumps).
+        """
+        self.pickle_serializer = serializer
+        self.pickle_deserializer = deserializer
 
     def clone(self):
         """
@@ -68,21 +91,27 @@ cdef class SerializationContext:
         result = SerializationContext()
         result.type_to_type_id = self.type_to_type_id.copy()
         result.whitelisted_types = self.whitelisted_types.copy()
+        result.types_to_pickle = self.types_to_pickle.copy()
         result.custom_serializers = self.custom_serializers.copy()
         result.custom_deserializers = self.custom_deserializers.copy()
+        result.pickle_serializer = self.pickle_serializer
+        result.pickle_deserializer = self.pickle_deserializer
 
         return result
 
-    def register_type(self, type_, type_id,
+    def register_type(self, type_, type_id, pickle=False,
                       custom_serializer=None, custom_deserializer=None):
-        """EXPERIMENTAL: Add type to the list of types we can serialize.
+        r"""EXPERIMENTAL: Add type to the list of types we can serialize.
 
         Parameters
         ----------
-        type_ : TypeType
+        type\_ : type
             The type that we can serialize.
-        type_id : bytes
-            A string of bytes used to identify the type.
+        type_id : string
+            A string used to identify the type.
+        pickle : bool
+            True if the serialization should be done with pickle.
+            False if it should be done efficiently with Arrow.
         custom_serializer : callable
             This argument is optional, but can be provided to
             serialize objects of the class in a particular way.
@@ -90,8 +119,14 @@ cdef class SerializationContext:
             This argument is optional, but can be provided to
             deserialize objects of the class in a particular way.
         """
+        if not isinstance(type_id, six.string_types):
+            raise TypeError("The type_id argument must be a string. The value "
+                            "passed in has type {}.".format(type(type_id)))
+
         self.type_to_type_id[type_] = type_id
         self.whitelisted_types[type_id] = type_
+        if pickle:
+            self.types_to_pickle.add(type_id)
         if custom_serializer is not None:
             self.custom_serializers[type_id] = custom_serializer
             self.custom_deserializers[type_id] = custom_deserializer
@@ -111,7 +146,10 @@ cdef class SerializationContext:
 
         # use the closest match to type(obj)
         type_id = self.type_to_type_id[type_]
-        if type_id in self.custom_serializers:
+        if type_id in self.types_to_pickle:
+            serialized_obj = {"data": self.pickle_serializer(obj),
+                              "pickle": True}
+        elif type_id in self.custom_serializers:
             serialized_obj = {"data": self.custom_serializers[type_id](obj)}
         else:
             if is_named_tuple(type_):
@@ -127,13 +165,17 @@ cdef class SerializationContext:
 
     def _deserialize_callback(self, serialized_obj):
         type_id = serialized_obj["_pytype_"]
+        if isinstance(type_id, bytes):
+            # ARROW-4675: Python 2 serialized, read in Python 3
+            type_id = frombytes(type_id)
 
         if "pickle" in serialized_obj:
             # The object was pickled, so unpickle it.
-            obj = pickle.loads(serialized_obj["data"])
+            obj = self.pickle_deserializer(serialized_obj["data"])
         else:
+            assert type_id not in self.types_to_pickle
             if type_id not in self.whitelisted_types:
-                msg = "Type ID " + str(type_id) + " not registered in " \
+                msg = "Type ID " + type_id + " not registered in " \
                       "deserialization callback"
                 raise DeserializationCallbackError(msg, type_id)
             type_ = self.whitelisted_types[type_id]
@@ -178,6 +220,16 @@ cdef class SerializationContext:
 
 
 _default_serialization_context = SerializationContext()
+_default_context_initialized = False
+
+
+def _get_default_context():
+    global _default_context_initialized
+    from pyarrow.serialization import register_default_serialization_handlers
+    if not _default_context_initialized:
+        register_default_serialization_handlers(_default_serialization_context)
+        _default_context_initialized = True
+    return _default_serialization_context
 
 
 cdef class SerializedPyObject:
@@ -190,14 +242,13 @@ cdef class SerializedPyObject:
     cdef readonly:
         object base
 
-    property total_bytes:
+    @property
+    def total_bytes(self):
+        cdef CMockOutputStream mock_stream
+        with nogil:
+            check_status(self.data.WriteTo(&mock_stream))
 
-        def __get__(self):
-            cdef CMockOutputStream mock_stream
-            with nogil:
-                check_status(self.data.WriteTo(&mock_stream))
-
-            return mock_stream.GetExtentBytesWritten()
+        return mock_stream.GetExtentBytesWritten()
 
     def write_to(self, sink):
         """
@@ -218,7 +269,7 @@ cdef class SerializedPyObject:
         cdef PyObject* result
 
         if context is None:
-            context = _default_serialization_context
+            context = _get_default_context()
 
         with nogil:
             check_status(DeserializeObject(context, self.data,
@@ -247,12 +298,14 @@ cdef class SerializedPyObject:
         """
         cdef:
             int num_tensors = components['num_tensors']
+            int num_ndarrays = components['num_ndarrays']
             int num_buffers = components['num_buffers']
             list buffers = components['data']
             SerializedPyObject result = SerializedPyObject()
 
         with nogil:
-            check_status(GetSerializedFromComponents(num_tensors, num_buffers,
+            check_status(GetSerializedFromComponents(num_tensors, num_ndarrays,
+                                                     num_buffers,
                                                      buffers, &result.data))
 
         return result
@@ -299,7 +352,7 @@ def serialize(object value, SerializationContext context=None):
     wrapped_value = [value]
 
     if context is None:
-        context = _default_serialization_context
+        context = _get_default_context()
 
     with nogil:
         check_status(SerializeObject(context, wrapped_value, &serialized.data))
@@ -339,7 +392,7 @@ def read_serialized(source, base=None):
     serialized : the serialized data
     """
     cdef shared_ptr[RandomAccessFile] stream
-    get_reader(source, &stream)
+    get_reader(source, True, &stream)
 
     cdef SerializedPyObject serialized = SerializedPyObject()
     serialized.base = base

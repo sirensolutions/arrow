@@ -1,13 +1,12 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,11 +22,13 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.complex.reader.FieldReader;
-import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.TransferPair;
@@ -36,11 +37,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import io.netty.buffer.ArrowBuf;
-
+import siren.io.netty.buffer.ArrowBuf;
 
 public class TestListVector {
 
@@ -112,6 +109,9 @@ public class TestListVector {
       result = outVector.getObject(2);
       resultSet = (ArrayList<Long>) result;
       assertEquals(0, resultSet.size());
+
+      /* 3+0+0/3 */
+      assertEquals(1.0D, inVector.getDensity(), 0);
     }
   }
 
@@ -208,6 +208,9 @@ public class TestListVector {
        */
       listVector.setLastSet(3);
       listVector.setValueCount(10);
+
+      /* (3+2+3)/10 */
+      assertEquals(0.8D, listVector.getDensity(), 0);
 
       index = 0;
       offset = offsetBuffer.getInt(index * ListVector.OFFSET_WIDTH);
@@ -423,8 +426,8 @@ public class TestListVector {
           for (int i = 0; i < splitLength; i++) {
             dataLength1 = offsetBuffer.getInt((start + i + 1) * ListVector.OFFSET_WIDTH) -
                     offsetBuffer.getInt((start + i) * ListVector.OFFSET_WIDTH);
-            dataLength2 = toOffsetBuffer.getInt((i + 1) * ListVector.OFFSET_WIDTH)
-                    - toOffsetBuffer.getInt(i * ListVector.OFFSET_WIDTH);
+            dataLength2 = toOffsetBuffer.getInt((i + 1) * ListVector.OFFSET_WIDTH) -
+                    toOffsetBuffer.getInt(i * ListVector.OFFSET_WIDTH);
 
             assertEquals("Different data lengths at index: " + i + " and start: " + start,
                     dataLength1, dataLength2);
@@ -511,7 +514,7 @@ public class TestListVector {
 
       assertEquals(2, resultSet.size());              /* 2 inner lists at index 0 */
       assertEquals(3, resultSet.get(0).size());       /* size of first inner list */
-      assertEquals(4, resultSet.get(1).size());      /* size of second inner list */
+      assertEquals(4, resultSet.get(1).size());       /* size of second inner list */
 
       list = resultSet.get(0);
       assertEquals(new Long(50), list.get(0));
@@ -524,13 +527,13 @@ public class TestListVector {
       assertEquals(new Long(150), list.get(2));
       assertEquals(new Long(175), list.get(3));
 
-       /* get listVector value at index 1 -- the value itself is a listvector */
+      /* get listVector value at index 1 -- the value itself is a listvector */
       result = listVector.getObject(1);
       resultSet = (ArrayList<ArrayList<Long>>) result;
 
       assertEquals(3, resultSet.size());              /* 3 inner lists at index 1 */
       assertEquals(1, resultSet.get(0).size());       /* size of first inner list */
-      assertEquals(2, resultSet.get(1).size());      /* size of second inner list */
+      assertEquals(2, resultSet.get(1).size());       /* size of second inner list */
       assertEquals(3, resultSet.get(2).size());       /* size of third inner list */
 
       list = resultSet.get(0);
@@ -560,6 +563,134 @@ public class TestListVector {
   }
 
   @Test
+  public void testNestedListVector1() throws Exception {
+    try (ListVector listVector = ListVector.empty("sourceVector", allocator)) {
+
+      MinorType listType = MinorType.LIST;
+      MinorType scalarType = MinorType.BIGINT;
+
+      listVector.addOrGetVector(FieldType.nullable(listType.getType()));
+
+      ListVector innerList1 = (ListVector)listVector.getDataVector();
+      innerList1.addOrGetVector(FieldType.nullable(listType.getType()));
+
+      ListVector innerList2 = (ListVector)innerList1.getDataVector();
+      innerList2.addOrGetVector(FieldType.nullable(listType.getType()));
+
+      ListVector innerList3 = (ListVector)innerList2.getDataVector();
+      innerList3.addOrGetVector(FieldType.nullable(listType.getType()));
+
+      ListVector innerList4 = (ListVector)innerList3.getDataVector();
+      innerList4.addOrGetVector(FieldType.nullable(listType.getType()));
+
+      ListVector innerList5 = (ListVector)innerList4.getDataVector();
+      innerList5.addOrGetVector(FieldType.nullable(listType.getType()));
+
+      ListVector innerList6 = (ListVector)innerList5.getDataVector();
+      innerList6.addOrGetVector(FieldType.nullable(scalarType.getType()));
+
+      listVector.setInitialCapacity(128);
+    }
+  }
+
+  @Test
+  public void testNestedListVector2() throws Exception {
+    try (ListVector listVector = ListVector.empty("sourceVector", allocator)) {
+      listVector.setInitialCapacity(1);
+      UnionListWriter listWriter = listVector.getWriter();
+      /* allocate memory */
+      listWriter.allocate();
+
+      /* write one or more inner lists at index 0 */
+      listWriter.setPosition(0);
+      listWriter.startList();
+
+      listWriter.list().startList();
+      listWriter.list().bigInt().writeBigInt(50);
+      listWriter.list().bigInt().writeBigInt(100);
+      listWriter.list().bigInt().writeBigInt(200);
+      listWriter.list().endList();
+
+      listWriter.list().startList();
+      listWriter.list().bigInt().writeBigInt(75);
+      listWriter.list().bigInt().writeBigInt(125);
+      listWriter.list().endList();
+
+      listWriter.endList();
+
+      /* write one or more inner lists at index 1 */
+      listWriter.setPosition(1);
+      listWriter.startList();
+
+      listWriter.list().startList();
+      listWriter.list().bigInt().writeBigInt(15);
+      listWriter.list().bigInt().writeBigInt(20);
+      listWriter.list().endList();
+
+      listWriter.list().startList();
+      listWriter.list().bigInt().writeBigInt(25);
+      listWriter.list().bigInt().writeBigInt(30);
+      listWriter.list().bigInt().writeBigInt(35);
+      listWriter.list().endList();
+
+      listWriter.endList();
+
+      assertEquals(2, listVector.getLastSet());
+
+      listVector.setValueCount(2);
+
+      assertEquals(2, listVector.getValueCount());
+
+      /* get listVector value at index 0 -- the value itself is a listvector */
+      Object result = listVector.getObject(0);
+      ArrayList<ArrayList<Long>> resultSet = (ArrayList<ArrayList<Long>>) result;
+      ArrayList<Long> list;
+
+      assertEquals(2, resultSet.size());              /* 2 inner lists at index 0 */
+      assertEquals(3, resultSet.get(0).size());       /* size of first inner list */
+      assertEquals(2, resultSet.get(1).size());       /* size of second inner list */
+
+      list = resultSet.get(0);
+      assertEquals(new Long(50), list.get(0));
+      assertEquals(new Long(100), list.get(1));
+      assertEquals(new Long(200), list.get(2));
+
+      list = resultSet.get(1);
+      assertEquals(new Long(75), list.get(0));
+      assertEquals(new Long(125), list.get(1));
+
+      /* get listVector value at index 1 -- the value itself is a listvector */
+      result = listVector.getObject(1);
+      resultSet = (ArrayList<ArrayList<Long>>) result;
+
+      assertEquals(2, resultSet.size());              /* 3 inner lists at index 1 */
+      assertEquals(2, resultSet.get(0).size());       /* size of first inner list */
+      assertEquals(3, resultSet.get(1).size());       /* size of second inner list */
+
+      list = resultSet.get(0);
+      assertEquals(new Long(15), list.get(0));
+      assertEquals(new Long(20), list.get(1));
+
+      list = resultSet.get(1);
+      assertEquals(new Long(25), list.get(0));
+      assertEquals(new Long(30), list.get(1));
+      assertEquals(new Long(35), list.get(2));
+
+      /* check underlying bitVector */
+      assertFalse(listVector.isNull(0));
+      assertFalse(listVector.isNull(1));
+
+      /* check underlying offsets */
+      final ArrowBuf offsetBuffer = listVector.getOffsetBuffer();
+
+      /* listVector has 2 lists at index 0 and 3 lists at index 1 */
+      assertEquals(0, offsetBuffer.getInt(0 * ListVector.OFFSET_WIDTH));
+      assertEquals(2, offsetBuffer.getInt(1 * ListVector.OFFSET_WIDTH));
+      assertEquals(4, offsetBuffer.getInt(2 * ListVector.OFFSET_WIDTH));
+    }
+  }
+
+  @Test
   public void testGetBufferAddress() throws Exception {
     try (ListVector listVector = ListVector.empty("vector", allocator)) {
 
@@ -580,6 +711,8 @@ public class TestListVector {
       listWriter.bigInt().writeBigInt(250);
       listWriter.bigInt().writeBigInt(300);
       listWriter.endList();
+
+      listVector.setValueCount(2);
 
       /* check listVector contents */
       Object result = listVector.getObject(0);
@@ -611,6 +744,9 @@ public class TestListVector {
       assertEquals(2, buffers.size());
       assertEquals(bitAddress, buffers.get(0).memoryAddress());
       assertEquals(offsetAddress, buffers.get(1).memoryAddress());
+
+      /* (3+2)/2 */
+      assertEquals(2.5, listVector.getDensity(), 0);
     }
   }
 
@@ -620,9 +756,119 @@ public class TestListVector {
       String emptyListStr = listVector.getField().toString();
       assertTrue(emptyListStr.contains(ListVector.DATA_VECTOR_NAME));
 
-      listVector.addOrGetVector(FieldType.nullable(Types.MinorType.INT.getType()));
+      listVector.addOrGetVector(FieldType.nullable(MinorType.INT.getType()));
       String emptyVectorStr = listVector.getField().toString();
       assertTrue(emptyVectorStr.contains(ListVector.DATA_VECTOR_NAME));
+    }
+  }
+
+  @Test
+  public void testSetInitialCapacity() {
+    try (final ListVector vector = ListVector.empty("", allocator)) {
+      vector.addOrGetVector(FieldType.nullable(MinorType.INT.getType()));
+
+      /**
+       * use the default multiplier of 5,
+       * 512 * 5 => 2560 * 4 => 10240 bytes => 16KB => 4096 value capacity.
+       */
+      vector.setInitialCapacity(512);
+      vector.allocateNew();
+      assertEquals(512, vector.getValueCapacity());
+      assertTrue(vector.getDataVector().getValueCapacity() >= 512 * 5);
+
+      /* use density as 4 */
+      vector.setInitialCapacity(512, 4);
+      vector.allocateNew();
+      assertEquals(512, vector.getValueCapacity());
+      assertTrue(vector.getDataVector().getValueCapacity() >= 512 * 4);
+
+      /**
+       * inner value capacity we pass to data vector is 512 * 0.1 => 51
+       * For an int vector this is 204 bytes of memory for data buffer
+       * and 7 bytes for validity buffer.
+       * and with power of 2 allocation, we allocate 256 bytes and 8 bytes
+       * for the data buffer and validity buffer of the inner vector. Thus
+       * value capacity of inner vector is 64
+       */
+      vector.setInitialCapacity(512, 0.1);
+      vector.allocateNew();
+      assertEquals(512, vector.getValueCapacity());
+      assertTrue(vector.getDataVector().getValueCapacity() >= 51);
+
+      /**
+       * inner value capacity we pass to data vector is 512 * 0.01 => 5
+       * For an int vector this is 20 bytes of memory for data buffer
+       * and 1 byte for validity buffer.
+       * and with power of 2 allocation, we allocate 32 bytes and 1 bytes
+       * for the data buffer and validity buffer of the inner vector. Thus
+       * value capacity of inner vector is 8
+       */
+      vector.setInitialCapacity(512, 0.01);
+      vector.allocateNew();
+      assertEquals(512, vector.getValueCapacity());
+      assertTrue(vector.getDataVector().getValueCapacity() >= 5);
+
+      /**
+       * inner value capacity we pass to data vector is 5 * 0.1 => 0
+       * which is then rounded off to 1. So we pass value count as 1
+       * to the inner int vector.
+       * the offset buffer of the list vector is allocated for 6 values
+       * which is 24 bytes and then rounded off to 32 bytes (8 values)
+       * the validity buffer of the list vector is allocated for 5
+       * values which is 1 byte. This is why value capacity of the list
+       * vector is 7 as we take the min of validity buffer value capacity
+       * and offset buffer value capacity.
+       */
+      vector.setInitialCapacity(5, 0.1);
+      vector.allocateNew();
+      assertEquals(7, vector.getValueCapacity());
+      assertTrue(vector.getDataVector().getValueCapacity() >= 1);
+    }
+  }
+
+  @Test
+  public void testClearAndReuse() {
+    try (final ListVector vector = ListVector.empty("list", allocator)) {
+      BigIntVector bigIntVector =
+          (BigIntVector) vector.addOrGetVector(FieldType.nullable(MinorType.BIGINT.getType())).getVector();
+      vector.setInitialCapacity(10);
+      vector.allocateNew();
+
+      vector.startNewValue(0);
+      bigIntVector.setSafe(0, 7);
+      vector.endValue(0, 1);
+      vector.startNewValue(1);
+      bigIntVector.setSafe(1, 8);
+      vector.endValue(1, 1);
+      vector.setValueCount(2);
+
+      Object result = vector.getObject(0);
+      ArrayList<Long> resultSet = (ArrayList<Long>) result;
+      assertEquals(new Long(7), resultSet.get(0));
+
+      result = vector.getObject(1);
+      resultSet = (ArrayList<Long>) result;
+      assertEquals(new Long(8), resultSet.get(0));
+
+      // Clear and release the buffers to trigger a realloc when adding next value
+      vector.clear();
+
+      // The list vector should reuse a buffer when reallocating the offset buffer
+      vector.startNewValue(0);
+      bigIntVector.setSafe(0, 7);
+      vector.endValue(0, 1);
+      vector.startNewValue(1);
+      bigIntVector.setSafe(1, 8);
+      vector.endValue(1, 1);
+      vector.setValueCount(2);
+
+      result = vector.getObject(0);
+      resultSet = (ArrayList<Long>) result;
+      assertEquals(new Long(7), resultSet.get(0));
+
+      result = vector.getObject(1);
+      resultSet = (ArrayList<Long>) result;
+      assertEquals(new Long(8), resultSet.get(0));
     }
   }
 }

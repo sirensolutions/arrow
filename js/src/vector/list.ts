@@ -15,60 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { List } from './types';
-import { Vector } from './vector';
-import { VirtualVector } from './virtual';
+import { BaseVector } from './base';
+import { DataType, List } from '../type';
 
-export class BinaryVector extends Vector<Uint8Array> {
-    readonly data: Uint8Array;
-    readonly offsets: Int32Array;
-    constructor(argv: { offsets: Int32Array, data: Uint8Array }) {
-        super();
-        this.data = argv.data;
-        this.offsets = argv.offsets;
-    }
-    get(index: number) {
-        return this.data.subarray(this.offsets[index], this.offsets[index + 1]);
-    }
-    concat(...vectors: Vector<Uint8Array>[]): Vector<Uint8Array> {
-        return new VirtualVector(Array, this, ...vectors);
-    }
-}
-
-export class ListVector<T> extends Vector<T[]> {
-    readonly offsets: Int32Array;
-    readonly values: Vector<T>;
-    constructor(argv: { offsets: Int32Array, values: Vector<T> }) {
-        super();
-        this.values = argv.values;
-        this.offsets = argv.offsets;
-    }
-    get(index: number) {
-        const { offsets, values } = this;
-        const from = offsets[index];
-        const xs = new Array(offsets[index + 1] - from);
-        for (let i = -1, n = xs.length; ++i < n;) {
-            xs[i] = values.get(i + from);
-        }
-        return xs;
-    }
-    concat(...vectors: Vector<T[]>[]): Vector<T[]> {
-        return new VirtualVector(Array, this, ...vectors);
-    }
-}
-
-export class FixedSizeListVector<T, TArray extends List<T>> extends Vector<TArray> {
-    readonly size: number;
-    readonly values: Vector<T>;
-    constructor(argv: { size: number, values: Vector<T> }) {
-        super();
-        this.size = argv.size;
-        this.values = argv.values;
-    }
-    get(index: number) {
-        return this.values.slice<TArray>(this.size * index, this.size * (index + 1));
-    }
-    concat(...vectors: Vector<TArray>[]): Vector<TArray> {
-        return new VirtualVector(Array, this, ...vectors);
-    }
-}
+/** @ignore */
+export class ListVector<T extends DataType = any> extends BaseVector<List<T>> {}

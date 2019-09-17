@@ -1,13 +1,12 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,7 +23,9 @@ import java.io.IOException;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.complex.NullableMapVector;
+import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.complex.impl.ComplexWriterImpl;
+import org.apache.arrow.vector.complex.writer.BaseWriter;
 import org.apache.arrow.vector.dictionary.DictionaryProvider;
 import org.apache.arrow.vector.dictionary.DictionaryProvider.MapDictionaryProvider;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -38,13 +39,42 @@ public class TestJSONFile extends BaseFileTest {
   private static final Logger LOGGER = LoggerFactory.getLogger(TestJSONFile.class);
 
   @Test
+  public void testNoBatches() throws IOException {
+    File file = new File("target/no_batches.json");
+
+    try (BufferAllocator originalVectorAllocator =
+             allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
+         StructVector parent = StructVector.empty("parent", originalVectorAllocator)) {
+      BaseWriter.ComplexWriter writer = new ComplexWriterImpl("root", parent);
+      BaseWriter.StructWriter rootWriter = writer.rootAsStruct();
+      rootWriter.integer("int");
+      rootWriter.uInt1("uint1");
+      rootWriter.bigInt("bigInt");
+      rootWriter.float4("float");
+      JsonFileWriter jsonWriter = new JsonFileWriter(file, JsonFileWriter.config().pretty(true));
+      jsonWriter.start(new VectorSchemaRoot(parent.getChild("root")).getSchema(), null);
+      jsonWriter.close();
+    }
+
+    // read
+    try (
+        BufferAllocator readerAllocator = allocator.newChildAllocator("reader", 0, Integer.MAX_VALUE);
+        JsonFileReader reader = new JsonFileReader(file, readerAllocator)
+    ) {
+      Schema schema = reader.start();
+      LOGGER.debug("reading schema: " + schema);
+    }
+  }
+
+  @Test
   public void testWriteRead() throws IOException {
     File file = new File("target/mytest.json");
     int count = COUNT;
 
     // write
-    try (BufferAllocator originalVectorAllocator = allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
-         NullableMapVector parent = NullableMapVector.empty("parent", originalVectorAllocator)) {
+    try (BufferAllocator originalVectorAllocator =
+           allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
+         StructVector parent = StructVector.empty("parent", originalVectorAllocator)) {
       writeData(count, parent);
       writeJSON(file, new VectorSchemaRoot(parent.getChild("root")), null);
     }
@@ -72,7 +102,7 @@ public class TestJSONFile extends BaseFileTest {
     // write
     try (
         BufferAllocator originalVectorAllocator = allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
-        NullableMapVector parent = NullableMapVector.empty("parent", originalVectorAllocator)) {
+        StructVector parent = StructVector.empty("parent", originalVectorAllocator)) {
       writeComplexData(count, parent);
       writeJSON(file, new VectorSchemaRoot(parent.getChild("root")), null);
     }
@@ -99,7 +129,7 @@ public class TestJSONFile extends BaseFileTest {
     int count = COUNT;
     try (
         BufferAllocator vectorAllocator = allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
-        NullableMapVector parent = NullableMapVector.empty("parent", vectorAllocator)) {
+        StructVector parent = StructVector.empty("parent", vectorAllocator)) {
       writeComplexData(count, parent);
       VectorSchemaRoot root = new VectorSchemaRoot(parent.getChild("root"));
       validateComplexContent(root.getRowCount(), root);
@@ -121,7 +151,7 @@ public class TestJSONFile extends BaseFileTest {
     int count = COUNT;
     try (
         BufferAllocator vectorAllocator = allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
-        NullableMapVector parent = NullableMapVector.empty("parent", vectorAllocator)) {
+        StructVector parent = StructVector.empty("parent", vectorAllocator)) {
       writeUnionData(count, parent);
       printVectors(parent.getChildrenFromFields());
 
@@ -153,7 +183,7 @@ public class TestJSONFile extends BaseFileTest {
     // write
     try (
         BufferAllocator vectorAllocator = allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
-        NullableMapVector parent = NullableMapVector.empty("parent", vectorAllocator)) {
+        StructVector parent = StructVector.empty("parent", vectorAllocator)) {
 
       writeDateTimeData(count, parent);
 
@@ -318,7 +348,7 @@ public class TestJSONFile extends BaseFileTest {
     // write
     try (
         BufferAllocator vectorAllocator = allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
-        NullableMapVector parent = NullableMapVector.empty("parent", vectorAllocator)) {
+        StructVector parent = StructVector.empty("parent", vectorAllocator)) {
       writeVarBinaryData(count, parent);
       VectorSchemaRoot root = new VectorSchemaRoot(parent.getChild("root"));
       validateVarBinary(count, root);
@@ -335,6 +365,38 @@ public class TestJSONFile extends BaseFileTest {
       // initialize vectors
       try (VectorSchemaRoot root = reader.read();) {
         validateVarBinary(count, root);
+      }
+      reader.close();
+    }
+  }
+
+  @Test
+  public void testWriteReadMapJSON() throws IOException {
+    File file = new File("target/mytest_map.json");
+
+    // write
+    try (
+      BufferAllocator vectorAllocator = allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE)
+    ) {
+
+      try (VectorSchemaRoot root = writeMapData(vectorAllocator)) {
+        printVectors(root.getFieldVectors());
+        validateMapData(root);
+        writeJSON(file, root, null);
+      }
+    }
+
+    // read
+    try (
+      BufferAllocator readerAllocator = allocator.newChildAllocator("reader", 0, Integer.MAX_VALUE);
+    ) {
+      JsonFileReader reader = new JsonFileReader(file, readerAllocator);
+      Schema schema = reader.start();
+      LOGGER.debug("reading schema: " + schema);
+
+      // initialize vectors
+      try (VectorSchemaRoot root = reader.read();) {
+        validateMapData(root);
       }
       reader.close();
     }

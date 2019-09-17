@@ -15,22 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include <cstdint>
 #include <memory>
-#include <string>
 #include <vector>
 
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include "arrow/array.h"
 #include "arrow/record_batch.h"
 #include "arrow/status.h"
 #include "arrow/table.h"
-#include "arrow/test-common.h"
-#include "arrow/test-util.h"
+#include "arrow/testing/gtest_common.h"
+#include "arrow/testing/random.h"
+#include "arrow/testing/util.h"
 #include "arrow/type.h"
-
-using std::shared_ptr;
-using std::vector;
 
 namespace arrow {
 
@@ -43,7 +42,9 @@ class TestChunkedArray : public TestBase {
  protected:
   virtual void Construct() {
     one_ = std::make_shared<ChunkedArray>(arrays_one_);
-    another_ = std::make_shared<ChunkedArray>(arrays_another_);
+    if (!arrays_another_.empty()) {
+      another_ = std::make_shared<ChunkedArray>(arrays_another_);
+    }
   }
 
   ArrayVector arrays_one_;
@@ -108,6 +109,58 @@ TEST_F(TestChunkedArray, EqualsDifferingLengths) {
   ASSERT_TRUE(one_->Equals(*another_.get()));
 }
 
+TEST_F(TestChunkedArray, SliceEquals) {
+  arrays_one_.push_back(MakeRandomArray<Int32Array>(100));
+  arrays_one_.push_back(MakeRandomArray<Int32Array>(50));
+  arrays_one_.push_back(MakeRandomArray<Int32Array>(50));
+  Construct();
+
+  std::shared_ptr<ChunkedArray> slice = one_->Slice(125, 50);
+  ASSERT_EQ(slice->length(), 50);
+  AssertChunkedEqual(*one_->Slice(125, 50), *slice);
+
+  std::shared_ptr<ChunkedArray> slice2 = one_->Slice(75)->Slice(25)->Slice(25, 50);
+  ASSERT_EQ(slice2->length(), 50);
+  AssertChunkedEqual(*slice, *slice2);
+
+  // Making empty slices of a ChunkedArray
+  std::shared_ptr<ChunkedArray> slice3 = one_->Slice(one_->length(), 99);
+  ASSERT_EQ(slice3->length(), 0);
+  ASSERT_EQ(slice3->num_chunks(), 0);
+  ASSERT_TRUE(slice3->type()->Equals(one_->type()));
+
+  std::shared_ptr<ChunkedArray> slice4 = one_->Slice(10, 0);
+  ASSERT_EQ(slice4->length(), 0);
+  ASSERT_EQ(slice4->num_chunks(), 0);
+  ASSERT_TRUE(slice4->type()->Equals(one_->type()));
+
+  // Slicing an empty ChunkedArray
+  std::shared_ptr<ChunkedArray> slice5 = slice4->Slice(0, 10);
+  ASSERT_EQ(slice5->length(), 0);
+  ASSERT_EQ(slice5->num_chunks(), 0);
+  ASSERT_TRUE(slice5->type()->Equals(one_->type()));
+}
+
+TEST_F(TestChunkedArray, Validate) {
+  // Valid if empty
+  ArrayVector empty = {};
+  auto no_chunks = std::make_shared<ChunkedArray>(empty, utf8());
+  ASSERT_OK(no_chunks->Validate());
+
+  random::RandomArrayGenerator gen(0);
+  arrays_one_.push_back(gen.Int32(50, 0, 100, 0.1));
+  Construct();
+  ASSERT_OK(one_->Validate());
+
+  arrays_one_.push_back(gen.Int32(50, 0, 100, 0.1));
+  Construct();
+  ASSERT_OK(one_->Validate());
+
+  arrays_one_.push_back(gen.String(50, 0, 10, 0.1));
+  Construct();
+  ASSERT_RAISES(Invalid, one_->Validate());
+}
+
 class TestColumn : public TestChunkedArray {
  protected:
   void Construct() override {
@@ -158,6 +211,22 @@ TEST_F(TestColumn, ChunksInhomogeneous) {
   ASSERT_RAISES(Invalid, column_->ValidateData());
 }
 
+TEST_F(TestColumn, SliceEquals) {
+  arrays_one_.push_back(MakeRandomArray<Int32Array>(100));
+  arrays_one_.push_back(MakeRandomArray<Int32Array>(50));
+  arrays_one_.push_back(MakeRandomArray<Int32Array>(50));
+  one_field_ = field("column", int32());
+  Construct();
+
+  std::shared_ptr<Column> slice = one_col_->Slice(125, 50);
+  ASSERT_EQ(slice->length(), 50);
+  ASSERT_TRUE(slice->Equals(one_col_->Slice(125, 50)));
+
+  std::shared_ptr<Column> slice2 = one_col_->Slice(75)->Slice(25)->Slice(25, 50);
+  ASSERT_EQ(slice2->length(), 50);
+  ASSERT_TRUE(slice2->Equals(slice));
+}
+
 TEST_F(TestColumn, Equals) {
   std::vector<bool> null_bitmap(100, true);
   std::vector<int32_t> data(100, 1);
@@ -196,7 +265,7 @@ class TestTable : public TestBase {
     auto f1 = field("f1", uint8());
     auto f2 = field("f2", int16());
 
-    vector<shared_ptr<Field>> fields = {f0, f1, f2};
+    std::vector<std::shared_ptr<Field>> fields = {f0, f1, f2};
     schema_ = std::make_shared<Schema>(fields);
 
     arrays_ = {MakeRandomArray<Int32Array>(length), MakeRandomArray<UInt8Array>(length),
@@ -209,7 +278,7 @@ class TestTable : public TestBase {
 
  protected:
   std::shared_ptr<Table> table_;
-  shared_ptr<Schema> schema_;
+  std::shared_ptr<Schema> schema_;
 
   std::vector<std::shared_ptr<Array>> arrays_;
   std::vector<std::shared_ptr<Column>> columns_;
@@ -293,7 +362,7 @@ TEST_F(TestTable, Equals) {
   auto f0 = field("f3", int32());
   auto f1 = field("f4", uint8());
   auto f2 = field("f5", int16());
-  vector<shared_ptr<Field>> fields = {f0, f1, f2};
+  std::vector<std::shared_ptr<Field>> fields = {f0, f1, f2};
   auto other_schema = std::make_shared<Schema>(fields);
   auto other = Table::Make(other_schema, columns_);
   ASSERT_FALSE(table_->Equals(*other));
@@ -343,6 +412,52 @@ TEST_F(TestTable, FromRecordBatches) {
   ASSERT_RAISES(Invalid, Table::FromRecordBatches({batch1, batch2}, &result));
 }
 
+TEST_F(TestTable, FromRecordBatchesZeroLength) {
+  // ARROW-2307
+  MakeExample1(10);
+
+  std::shared_ptr<Table> result;
+  ASSERT_OK(Table::FromRecordBatches(schema_, {}, &result));
+
+  ASSERT_EQ(0, result->num_rows());
+  ASSERT_TRUE(result->schema()->Equals(*schema_));
+}
+
+TEST_F(TestTable, CombineChunksEmptyTable) {
+  MakeExample1(10);
+
+  std::shared_ptr<Table> table;
+  ASSERT_OK(Table::FromRecordBatches(schema_, {}, &table));
+  ASSERT_EQ(0, table->num_rows());
+
+  std::shared_ptr<Table> compacted;
+  ASSERT_OK(table->CombineChunks(default_memory_pool(), &compacted));
+
+  EXPECT_TRUE(compacted->Equals(*table));
+}
+
+TEST_F(TestTable, CombineChunks) {
+  MakeExample1(10);
+  auto batch1 = RecordBatch::Make(schema_, 10, arrays_);
+
+  MakeExample1(15);
+  auto batch2 = RecordBatch::Make(schema_, 15, arrays_);
+
+  std::shared_ptr<Table> table;
+  ASSERT_OK(Table::FromRecordBatches({batch1, batch2}, &table));
+  for (int i = 0; i < table->num_columns(); ++i) {
+    ASSERT_EQ(2, table->column(i)->data()->num_chunks());
+  }
+
+  std::shared_ptr<Table> compacted;
+  ASSERT_OK(table->CombineChunks(default_memory_pool(), &compacted));
+
+  EXPECT_TRUE(compacted->Equals(*table));
+  for (int i = 0; i < compacted->num_columns(); ++i) {
+    EXPECT_EQ(1, compacted->column(i)->data()->num_chunks());
+  }
+}
+
 TEST_F(TestTable, ConcatenateTables) {
   const int64_t length = 10;
 
@@ -359,7 +474,7 @@ TEST_F(TestTable, ConcatenateTables) {
 
   ASSERT_OK(ConcatenateTables({t1, t2}, &result));
   ASSERT_OK(Table::FromRecordBatches({batch1, batch2}, &expected));
-  ASSERT_TRUE(result->Equals(*expected));
+  AssertTablesEqual(*expected, *result);
 
   // Error states
   std::vector<std::shared_ptr<Table>> empty_tables;
@@ -372,6 +487,23 @@ TEST_F(TestTable, ConcatenateTables) {
   ASSERT_OK(Table::FromRecordBatches({batch3}, &t3));
 
   ASSERT_RAISES(Invalid, ConcatenateTables({t1, t3}, &result));
+}
+
+TEST_F(TestTable, Slice) {
+  const int64_t length = 10;
+
+  MakeExample1(length);
+  auto batch = RecordBatch::Make(schema_, length, arrays_);
+
+  std::shared_ptr<Table> half, whole, three;
+  ASSERT_OK(Table::FromRecordBatches({batch}, &half));
+  ASSERT_OK(Table::FromRecordBatches({batch, batch}, &whole));
+  ASSERT_OK(Table::FromRecordBatches({batch, batch, batch}, &three));
+
+  AssertTablesEqual(*whole->Slice(0, length), *half);
+  AssertTablesEqual(*whole->Slice(length), *half);
+  AssertTablesEqual(*whole->Slice(length / 3, 2 * (length - length / 3)),
+                    *three->Slice(length + length / 3, 2 * (length - length / 3)));
 }
 
 TEST_F(TestTable, RemoveColumn) {
@@ -404,6 +536,38 @@ TEST_F(TestTable, RemoveColumn) {
   ASSERT_TRUE(result->Equals(*expected));
 }
 
+TEST_F(TestTable, SetColumn) {
+  const int64_t length = 10;
+  MakeExample1(length);
+
+  auto table_sp = Table::Make(schema_, columns_);
+  const Table& table = *table_sp;
+
+  std::shared_ptr<Table> result;
+  ASSERT_OK(table.SetColumn(0, table.column(1), &result));
+
+  auto ex_schema =
+      ::arrow::schema({schema_->field(1), schema_->field(1), schema_->field(2)});
+  std::vector<std::shared_ptr<Column>> ex_columns = {table.column(1), table.column(1),
+                                                     table.column(2)};
+
+  auto expected = Table::Make(ex_schema, ex_columns);
+  ASSERT_TRUE(result->Equals(*expected));
+}
+
+TEST_F(TestTable, RenameColumns) {
+  MakeExample1(10);
+  auto table = Table::Make(schema_, columns_);
+  EXPECT_THAT(table->ColumnNames(), testing::ElementsAre("f0", "f1", "f2"));
+
+  std::shared_ptr<Table> renamed;
+  ASSERT_OK(table->RenameColumns({"zero", "one", "two"}, &renamed));
+  EXPECT_THAT(renamed->ColumnNames(), testing::ElementsAre("zero", "one", "two"));
+  ASSERT_OK(renamed->Validate());
+
+  ASSERT_RAISES(Invalid, table->RenameColumns({"hello", "world"}, &renamed));
+}
+
 TEST_F(TestTable, RemoveColumnEmpty) {
   // ARROW-1865
   const int64_t length = 10;
@@ -434,6 +598,8 @@ TEST_F(TestTable, AddColumn) {
   std::shared_ptr<Table> result;
   // Some negative tests with invalid index
   Status status = table.AddColumn(10, columns_[0], &result);
+  ASSERT_TRUE(status.IsInvalid());
+  status = table.AddColumn(4, columns_[0], &result);
   ASSERT_TRUE(status.IsInvalid());
   status = table.AddColumn(-1, columns_[0], &result);
   ASSERT_TRUE(status.IsInvalid());
@@ -485,7 +651,7 @@ TEST_F(TestRecordBatch, Equals) {
   auto f1 = field("f1", uint8());
   auto f2 = field("f2", int16());
 
-  vector<shared_ptr<Field>> fields = {f0, f1, f2};
+  std::vector<std::shared_ptr<Field>> fields = {f0, f1, f2};
   auto schema = ::arrow::schema({f0, f1, f2});
   auto schema2 = ::arrow::schema({f0, f1});
 
@@ -535,7 +701,7 @@ TEST_F(TestRecordBatch, Slice) {
   auto f0 = field("f0", int32());
   auto f1 = field("f1", uint8());
 
-  vector<shared_ptr<Field>> fields = {f0, f1};
+  std::vector<std::shared_ptr<Field>> fields = {f0, f1};
   auto schema = ::arrow::schema(fields);
 
   auto a0 = MakeRandomArray<Int32Array>(length);
@@ -555,6 +721,115 @@ TEST_F(TestRecordBatch, Slice) {
     ASSERT_EQ(1, batch_slice2->column(i)->offset());
     ASSERT_EQ(5, batch_slice2->column(i)->length());
   }
+}
+
+TEST_F(TestRecordBatch, AddColumn) {
+  const int length = 10;
+
+  auto field1 = field("f1", int32());
+  auto field2 = field("f2", uint8());
+  auto field3 = field("f3", int16());
+
+  auto schema1 = ::arrow::schema({field1, field2});
+  auto schema2 = ::arrow::schema({field2, field3});
+  auto schema3 = ::arrow::schema({field2});
+
+  auto array1 = MakeRandomArray<Int32Array>(length);
+  auto array2 = MakeRandomArray<UInt8Array>(length);
+  auto array3 = MakeRandomArray<Int16Array>(length);
+
+  auto batch1 = RecordBatch::Make(schema1, length, {array1, array2});
+  auto batch2 = RecordBatch::Make(schema2, length, {array2, array3});
+  auto batch3 = RecordBatch::Make(schema3, length, {array2});
+
+  const RecordBatch& batch = *batch3;
+  std::shared_ptr<RecordBatch> result;
+
+  // Negative tests with invalid index
+  Status status = batch.AddColumn(5, field1, array1, &result);
+  ASSERT_TRUE(status.IsInvalid());
+  status = batch.AddColumn(2, field1, array1, &result);
+  ASSERT_TRUE(status.IsInvalid());
+  status = batch.AddColumn(-1, field1, array1, &result);
+  ASSERT_TRUE(status.IsInvalid());
+
+  // Negative test with wrong length
+  auto longer_col = MakeRandomArray<Int32Array>(length + 1);
+  status = batch.AddColumn(0, field1, longer_col, &result);
+  ASSERT_TRUE(status.IsInvalid());
+
+  // Negative test with mismatch type
+  status = batch.AddColumn(0, field1, array2, &result);
+  ASSERT_TRUE(status.IsInvalid());
+
+  ASSERT_OK(batch.AddColumn(0, field1, array1, &result));
+  ASSERT_TRUE(result->Equals(*batch1));
+
+  ASSERT_OK(batch.AddColumn(1, field3, array3, &result));
+  ASSERT_TRUE(result->Equals(*batch2));
+
+  std::shared_ptr<RecordBatch> result2;
+  ASSERT_OK(batch.AddColumn(1, "f3", array3, &result2));
+  ASSERT_TRUE(result2->Equals(*result));
+
+  ASSERT_TRUE(result2->schema()->field(1)->nullable());
+}
+
+TEST_F(TestRecordBatch, RemoveColumn) {
+  const int length = 10;
+
+  auto field1 = field("f1", int32());
+  auto field2 = field("f2", uint8());
+  auto field3 = field("f3", int16());
+
+  auto schema1 = ::arrow::schema({field1, field2, field3});
+  auto schema2 = ::arrow::schema({field2, field3});
+  auto schema3 = ::arrow::schema({field1, field3});
+  auto schema4 = ::arrow::schema({field1, field2});
+
+  auto array1 = MakeRandomArray<Int32Array>(length);
+  auto array2 = MakeRandomArray<UInt8Array>(length);
+  auto array3 = MakeRandomArray<Int16Array>(length);
+
+  auto batch1 = RecordBatch::Make(schema1, length, {array1, array2, array3});
+  auto batch2 = RecordBatch::Make(schema2, length, {array2, array3});
+  auto batch3 = RecordBatch::Make(schema3, length, {array1, array3});
+  auto batch4 = RecordBatch::Make(schema4, length, {array1, array2});
+
+  const RecordBatch& batch = *batch1;
+  std::shared_ptr<RecordBatch> result;
+
+  // Negative tests with invalid index
+  Status status = batch.RemoveColumn(3, &result);
+  ASSERT_TRUE(status.IsInvalid());
+  status = batch.RemoveColumn(-1, &result);
+  ASSERT_TRUE(status.IsInvalid());
+
+  ASSERT_OK(batch.RemoveColumn(0, &result));
+  ASSERT_TRUE(result->Equals(*batch2));
+
+  ASSERT_OK(batch.RemoveColumn(1, &result));
+  ASSERT_TRUE(result->Equals(*batch3));
+
+  ASSERT_OK(batch.RemoveColumn(2, &result));
+  ASSERT_TRUE(result->Equals(*batch4));
+}
+
+TEST_F(TestRecordBatch, RemoveColumnEmpty) {
+  const int length = 10;
+
+  auto field1 = field("f1", int32());
+  auto schema1 = ::arrow::schema({field1});
+  auto array1 = MakeRandomArray<Int32Array>(length);
+  auto batch1 = RecordBatch::Make(schema1, length, {array1});
+
+  std::shared_ptr<RecordBatch> empty;
+  ASSERT_OK(batch1->RemoveColumn(0, &empty));
+  ASSERT_EQ(batch1->num_rows(), empty->num_rows());
+
+  std::shared_ptr<RecordBatch> added;
+  ASSERT_OK(empty->AddColumn(0, field1, array1, &added));
+  ASSERT_TRUE(added->Equals(*batch1));
 }
 
 class TestTableBatchReader : public TestBase {};

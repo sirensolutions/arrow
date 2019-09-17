@@ -15,26 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Vector } from './vector';
-import { VirtualVector } from './virtual';
-import { TextDecoder } from 'text-encoding-utf-8';
+import { Vector } from '../vector';
+import { Chunked } from './chunked';
+import { BaseVector } from './base';
+import { Binary, Utf8 } from '../type';
+import { VectorBuilderOptions } from './index';
+import { vectorFromValuesWithType } from './index';
+import { VectorBuilderOptionsAsync } from './index';
 
-const decoder = new TextDecoder('utf-8');
-
-export class Utf8Vector extends Vector<string> {
-    readonly values: Vector<Uint8Array | null>;
-    constructor(argv: { values: Vector<Uint8Array | null> }) {
-        super();
-        this.values = argv.values;
+/** @ignore */
+export class Utf8Vector extends BaseVector<Utf8> {
+    public static from<TNull = any>(input: Iterable<string | TNull>): Utf8Vector;
+    public static from<TNull = any>(input: AsyncIterable<string | TNull>): Promise<Utf8Vector>;
+    public static from<TNull = any>(input: VectorBuilderOptions<Utf8, TNull>): Chunked<Utf8>;
+    public static from<TNull = any>(input: VectorBuilderOptionsAsync<Utf8, TNull>): Promise<Chunked<Utf8>>;
+    /** @nocollapse */
+    public static from<TNull = any>(input: Iterable<string | TNull> | AsyncIterable<string | TNull> | VectorBuilderOptions<Utf8, TNull> | VectorBuilderOptionsAsync<Utf8, TNull>) {
+        return vectorFromValuesWithType(() => new Utf8(), input);
     }
-    get(index: number) {
-        const chars = this.getCodePoints(index);
-        return chars ? decoder.decode(chars) : null;
-    }
-    getCodePoints(index: number) {
-        return this.values.get(index);
-    }
-    concat(...vectors: Vector<string>[]): Vector<string> {
-        return new VirtualVector(Array, this, ...vectors);
+    public asBinary() {
+        return Vector.new(this.data.clone(new Binary()));
     }
 }

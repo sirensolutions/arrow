@@ -17,16 +17,13 @@
 
 #include "arrow/table_builder.h"
 
-#include <algorithm>
-#include <cstdlib>
 #include <memory>
-#include <sstream>
+#include <utility>
 
 #include "arrow/array.h"
 #include "arrow/builder.h"
 #include "arrow/record_batch.h"
 #include "arrow/status.h"
-#include "arrow/table.h"
 #include "arrow/type.h"
 #include "arrow/util/logging.h"
 
@@ -78,7 +75,7 @@ Status RecordBatchBuilder::Flush(std::shared_ptr<RecordBatch>* batch) {
 }
 
 void RecordBatchBuilder::SetInitialCapacity(int64_t capacity) {
-  DCHECK_GT(capacity, 0) << "Initial capacity must be positive";
+  ARROW_CHECK_GT(capacity, 0) << "Initial capacity must be positive";
   initial_capacity_ = capacity;
 }
 
@@ -94,7 +91,7 @@ Status RecordBatchBuilder::CreateBuilders() {
 
 Status RecordBatchBuilder::InitBuilders() {
   for (int i = 0; i < this->num_fields(); ++i) {
-    RETURN_NOT_OK(raw_field_builders_[i]->Init(initial_capacity_));
+    RETURN_NOT_OK(raw_field_builders_[i]->Reserve(initial_capacity_));
   }
   return Status::OK();
 }

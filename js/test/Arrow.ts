@@ -16,34 +16,42 @@
 // under the License.
 
 /* tslint:disable */
-// Dynamically load an Ix target build based on command line arguments
+// Dynamically load an Arrow target build based on command line arguments
 
-const path = require('path');
-const target = process.env.TEST_TARGET!;
-const format = process.env.TEST_MODULE!;
-const useSrc = process.env.TEST_TS_SOURCE === `true`;
+import 'web-streams-polyfill';
+
+/* tslint:disable */
+// import this before assigning window global since it does a `typeof window` check
+require('web-stream-tools');
+
+(<any> global).window = (<any> global).window || global;
+
+// Fix for Jest in node v10.x
+Object.defineProperty(ArrayBuffer, Symbol.hasInstance, {
+    writable: true,
+    configurable: true,
+    value(inst: any) {
+        return inst && inst.constructor && inst.constructor.name === 'ArrayBuffer';
+    }
+});
 
 // these are duplicated in the gulpfile :<
 const targets = [`es5`, `es2015`, `esnext`];
 const formats = [`cjs`, `esm`, `cls`, `umd`];
 
-function throwInvalidImportError(name: string, value: string, values: string[]) {
-    throw new Error('Unrecognized ' + name + ' \'' + value + '\'. Please run tests with \'--' + name + ' <any of ' + values.join(', ') + '>\'');
-}
+const path = require('path');
+const target = process.env.TEST_TARGET!;
+const format = process.env.TEST_MODULE!;
+const useSrc = process.env.TEST_TS_SOURCE === `true` || (!~targets.indexOf(target) || !~formats.indexOf(format));
 
 let modulePath = ``;
 
 if (useSrc) modulePath = '../src';
 else if (target === `ts` || target === `apache-arrow`) modulePath = target;
-else if (!~targets.indexOf(target)) throwInvalidImportError('target', target, targets);
-else if (!~formats.indexOf(format)) throwInvalidImportError('module', format, formats);
 else modulePath = path.join(target, format);
 
-export { List } from '../src/Arrow';
-export { TypedArray } from '../src/Arrow';
-export { TypedArrayConstructor } from '../src/Arrow';
-export { NumericVectorConstructor } from '../src/Arrow';
+modulePath = path.resolve(`./targets`, modulePath);
+modulePath = path.join(modulePath, `Arrow${format === 'umd' ? '' : '.node'}`);
+const Arrow: typeof import('../src/Arrow') = require(modulePath);
 
-import * as Arrow_ from '../src/Arrow';
-export let Arrow: typeof Arrow_ = require(path.resolve(`./targets`, modulePath, `Arrow`));
-export default Arrow;
+export = Arrow;

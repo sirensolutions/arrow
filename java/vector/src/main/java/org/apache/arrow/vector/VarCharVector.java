@@ -1,14 +1,13 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,18 +17,17 @@
 
 package org.apache.arrow.vector;
 
-import io.netty.buffer.ArrowBuf;
+import static org.apache.arrow.vector.NullCheckingForGet.NULL_CHECKING_ENABLED;
+
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.complex.impl.VarCharReaderImpl;
 import org.apache.arrow.vector.complex.reader.FieldReader;
-import org.apache.arrow.vector.holders.VarCharHolder;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
-import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.holders.VarCharHolder;
+import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.Text;
 import org.apache.arrow.vector.util.TransferPair;
-
-import java.nio.ByteBuffer;
 
 /**
  * VarCharVector implements a variable width vector of VARCHAR
@@ -46,7 +44,7 @@ public class VarCharVector extends BaseVariableWidthVector {
    * @param allocator allocator for memory management.
    */
   public VarCharVector(String name, BufferAllocator allocator) {
-    this(name, FieldType.nullable(org.apache.arrow.vector.types.Types.MinorType.VARCHAR.getType()), allocator);
+    this(name, FieldType.nullable(MinorType.VARCHAR.getType()), allocator);
   }
 
   /**
@@ -62,7 +60,7 @@ public class VarCharVector extends BaseVariableWidthVector {
   }
 
   /**
-   * Get a reader that supports reading values from this vector
+   * Get a reader that supports reading values from this vector.
    * @return Field Reader for this vector
    */
   @Override
@@ -76,16 +74,16 @@ public class VarCharVector extends BaseVariableWidthVector {
    * @return {@link org.apache.arrow.vector.types.Types.MinorType}
    */
   @Override
-  public Types.MinorType getMinorType() {
-    return Types.MinorType.VARCHAR;
+  public MinorType getMinorType() {
+    return MinorType.VARCHAR;
   }
 
 
-  /******************************************************************
-   *                                                                *
-   *          vector value getter methods                           *
-   *                                                                *
-   ******************************************************************/
+  /*----------------------------------------------------------------*
+   |                                                                |
+   |          vector value retrieval methods                        |
+   |                                                                |
+   *----------------------------------------------------------------*/
 
 
   /**
@@ -96,10 +94,10 @@ public class VarCharVector extends BaseVariableWidthVector {
    */
   public byte[] get(int index) {
     assert index >= 0;
-    if (isSet(index) == 0) {
+    if (NULL_CHECKING_ENABLED && isSet(index) == 0) {
       throw new IllegalStateException("Value at index is null");
     }
-    final int startOffset = getstartOffset(index);
+    final int startOffset = getStartOffset(index);
     final int dataLength =
             offsetBuffer.getInt((index + 1) * OFFSET_WIDTH) - startOffset;
     final byte[] result = new byte[dataLength];
@@ -139,22 +137,23 @@ public class VarCharVector extends BaseVariableWidthVector {
       return;
     }
     holder.isSet = 1;
-    holder.start = getstartOffset(index);
+    holder.start = getStartOffset(index);
     holder.end = offsetBuffer.getInt((index + 1) * OFFSET_WIDTH);
     holder.buffer = valueBuffer;
   }
 
 
-  /******************************************************************
-   *                                                                *
-   *          vector value setter methods                           *
-   *                                                                *
-   ******************************************************************/
+  /*----------------------------------------------------------------*
+   |                                                                |
+   |          vector value setter methods                           |
+   |                                                                |
+   *----------------------------------------------------------------*/
 
 
   /**
    * Copy a cell value from a particular index in source vector to a particular
-   * position in this vector
+   * position in this vector.
+   *
    * @param fromIndex position to copy from in source vector
    * @param thisIndex position to copy to in this vector
    * @param from source vector
@@ -175,6 +174,7 @@ public class VarCharVector extends BaseVariableWidthVector {
    * Same as {@link #copyFrom(int, int, VarCharVector)} except that
    * it handles the case when the capacity of the vector needs to be expanded
    * before copy.
+   *
    * @param fromIndex position to copy from in source vector
    * @param thisIndex position to copy to in this vector
    * @param from source vector
@@ -194,7 +194,7 @@ public class VarCharVector extends BaseVariableWidthVector {
 
   /**
    * Set the variable length element at the specified index to the data
-   * buffer supplied in the holder
+   * buffer supplied in the holder.
    *
    * @param index   position of the element to set
    * @param holder  holder that carries data buffer.
@@ -204,7 +204,7 @@ public class VarCharVector extends BaseVariableWidthVector {
     fillHoles(index);
     BitVectorHelper.setValidityBitToOne(validityBuffer, index);
     final int dataLength = holder.end - holder.start;
-    final int startOffset = getstartOffset(index);
+    final int startOffset = getStartOffset(index);
     offsetBuffer.setInt((index + 1) * OFFSET_WIDTH, startOffset + dataLength);
     valueBuffer.setBytes(startOffset, holder.buffer, holder.start, dataLength);
     lastSet = index;
@@ -224,7 +224,7 @@ public class VarCharVector extends BaseVariableWidthVector {
     fillEmpties(index);
     handleSafe(index, dataLength);
     BitVectorHelper.setValidityBitToOne(validityBuffer, index);
-    final int startOffset = getstartOffset(index);
+    final int startOffset = getStartOffset(index);
     offsetBuffer.setInt((index + 1) * OFFSET_WIDTH, startOffset + dataLength);
     valueBuffer.setBytes(startOffset, holder.buffer, holder.start, dataLength);
     lastSet = index;
@@ -232,7 +232,7 @@ public class VarCharVector extends BaseVariableWidthVector {
 
   /**
    * Set the variable length element at the specified index to the data
-   * buffer supplied in the holder
+   * buffer supplied in the holder.
    *
    * @param index   position of the element to set
    * @param holder  holder that carries data buffer.
@@ -241,10 +241,14 @@ public class VarCharVector extends BaseVariableWidthVector {
     assert index >= 0;
     fillHoles(index);
     BitVectorHelper.setValidityBit(validityBuffer, index, holder.isSet);
-    final int dataLength = holder.end - holder.start;
-    final int startOffset = getstartOffset(index);
-    offsetBuffer.setInt((index + 1) * OFFSET_WIDTH, startOffset + dataLength);
-    valueBuffer.setBytes(startOffset, holder.buffer, holder.start, dataLength);
+    final int startOffset = getStartOffset(index);
+    if (holder.isSet != 0) {
+      final int dataLength = holder.end - holder.start;
+      offsetBuffer.setInt((index + 1) * OFFSET_WIDTH, startOffset + dataLength);
+      valueBuffer.setBytes(startOffset, holder.buffer, holder.start, dataLength);
+    } else {
+      offsetBuffer.setInt((index + 1) * OFFSET_WIDTH, startOffset);
+    }
     lastSet = index;
   }
 
@@ -258,26 +262,55 @@ public class VarCharVector extends BaseVariableWidthVector {
    */
   public void setSafe(int index, NullableVarCharHolder holder) {
     assert index >= 0;
-    final int dataLength = holder.end - holder.start;
     fillEmpties(index);
-    handleSafe(index, dataLength);
     BitVectorHelper.setValidityBit(validityBuffer, index, holder.isSet);
-    final int startOffset = getstartOffset(index);
-    offsetBuffer.setInt((index + 1) * OFFSET_WIDTH, startOffset + dataLength);
-    valueBuffer.setBytes(startOffset, holder.buffer, holder.start, dataLength);
+    final int startOffset = getStartOffset(index);
+    if (holder.isSet != 0) {
+      final int dataLength = holder.end - holder.start;
+      handleSafe(index, dataLength);
+      offsetBuffer.setInt((index + 1) * OFFSET_WIDTH, startOffset + dataLength);
+      valueBuffer.setBytes(startOffset, holder.buffer, holder.start, dataLength);
+    } else {
+      handleSafe(index, 0);
+      offsetBuffer.setInt((index + 1) * OFFSET_WIDTH, startOffset);
+    }
     lastSet = index;
   }
 
+  /**
+   * Set the variable length element at the specified index to the
+   * content in supplied Text.
+   *
+   * @param index   position of the element to set
+   * @param text    Text object with data
+   */
+  public void set(int index, Text text) {
+    set(index, text.getBytes(), 0, text.getLength());
+  }
 
-  /******************************************************************
-   *                                                                *
-   *                      vector transfer                           *
-   *                                                                *
-   ******************************************************************/
+  /**
+   * Same as {@link #set(int, NullableVarCharHolder)} except that it handles the
+   * case where index and length of new element are beyond the existing
+   * capacity of the vector.
+   *
+   * @param index   position of the element to set.
+   * @param text    Text object with data
+   */
+  public void setSafe(int index, Text text) {
+    setSafe(index, text.getBytes(), 0, text.getLength());
+  }
+
+
+  /*----------------------------------------------------------------*
+   |                                                                |
+   |                      vector transfer                           |
+   |                                                                |
+   *----------------------------------------------------------------*/
 
   /**
    * Construct a TransferPair comprising of this and and a target vector of
    * the same type.
+   *
    * @param ref name of the target vector
    * @param allocator allocator for the target vector
    * @return {@link TransferPair}
@@ -289,6 +322,7 @@ public class VarCharVector extends BaseVariableWidthVector {
 
   /**
    * Construct a TransferPair with a desired target vector of the same type.
+   *
    * @param to target vector
    * @return {@link TransferPair}
    */

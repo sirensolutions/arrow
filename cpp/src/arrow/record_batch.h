@@ -15,23 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#ifndef ARROW_RECORD_BATCH_H
-#define ARROW_RECORD_BATCH_H
+#pragma once
 
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "arrow/array.h"
-#include "arrow/type.h"
+#include "arrow/type_fwd.h"
+#include "arrow/util/iterator.h"
 #include "arrow/util/macros.h"
 #include "arrow/util/visibility.h"
 
 namespace arrow {
-
-class KeyValueMetadata;
-class Status;
 
 /// \class RecordBatch
 /// \brief Collection of equal-length arrays matching a particular Schema
@@ -91,10 +87,44 @@ class ARROW_EXPORT RecordBatch {
   /// \return an Array object
   virtual std::shared_ptr<Array> column(int i) const = 0;
 
+  /// \brief Retrieve an array from the record batch
+  /// \param[in] name field name
+  /// \return an Array or null if no field was found
+  std::shared_ptr<Array> GetColumnByName(const std::string& name) const;
+
   /// \brief Retrieve an array's internaldata from the record batch
   /// \param[in] i field index, does not boundscheck
   /// \return an internal ArrayData object
   virtual std::shared_ptr<ArrayData> column_data(int i) const = 0;
+
+  /// \brief Add column to the record batch, producing a new RecordBatch
+  ///
+  /// \param[in] i field index, which will be boundschecked
+  /// \param[in] field field to be added
+  /// \param[in] column column to be added
+  /// \param[out] out record batch with column added
+  virtual Status AddColumn(int i, const std::shared_ptr<Field>& field,
+                           const std::shared_ptr<Array>& column,
+                           std::shared_ptr<RecordBatch>* out) const = 0;
+
+  /// \brief Add new nullable column to the record batch, producing a new
+  /// RecordBatch.
+  ///
+  /// For non-nullable columns, use the Field-based version of this method.
+  ///
+  /// \param[in] i field index, which will be boundschecked
+  /// \param[in] field_name name of field to be added
+  /// \param[in] column column to be added
+  /// \param[out] out record batch with column added
+  virtual Status AddColumn(int i, const std::string& field_name,
+                           const std::shared_ptr<Array>& column,
+                           std::shared_ptr<RecordBatch>* out) const;
+
+  /// \brief Remove column from the record batch, producing a new RecordBatch
+  ///
+  /// \param[in] i field index, does boundscheck
+  /// \param[out] out record batch with column removed
+  virtual Status RemoveColumn(int i, std::shared_ptr<RecordBatch>* out) const = 0;
 
   virtual std::shared_ptr<RecordBatch> ReplaceSchemaMetadata(
       const std::shared_ptr<const KeyValueMetadata>& metadata) const = 0;
@@ -103,7 +133,7 @@ class ARROW_EXPORT RecordBatch {
   const std::string& column_name(int i) const;
 
   /// \return the number of columns in the table
-  int num_columns() const { return schema_->num_fields(); }
+  int num_columns() const;
 
   /// \return the number of rows (the corresponding length of each column)
   int64_t num_rows() const { return num_rows_; }
@@ -141,14 +171,18 @@ class ARROW_EXPORT RecordBatchReader {
   /// \return the shared schema of the record batches in the stream
   virtual std::shared_ptr<Schema> schema() const = 0;
 
-  /// Read the next record batch in the stream. Return null for batch when
-  /// reaching end of stream
+  /// \brief Read the next record batch in the stream. Return null for batch
+  /// when reaching end of stream
   ///
   /// \param[out] batch the next loaded batch, null at end of stream
   /// \return Status
   virtual Status ReadNext(std::shared_ptr<RecordBatch>* batch) = 0;
+
+  /// \brief Consume entire stream as a vector of record batches
+  Status ReadAll(std::vector<std::shared_ptr<RecordBatch>>* batches);
+
+  /// \brief Read all batches and concatenate as arrow::Table
+  Status ReadAll(std::shared_ptr<Table>* table);
 };
 
 }  // namespace arrow
-
-#endif  // ARROW_RECORD_BATCH_H
