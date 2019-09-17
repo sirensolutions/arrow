@@ -29,7 +29,7 @@ import org.apache.arrow.vector.util.TransferPair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Base class for other Arrow Vector Types.  Provides basic functionality around

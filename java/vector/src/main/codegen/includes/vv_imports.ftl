@@ -20,7 +20,7 @@ import static org.apache.arrow.util.Preconditions.checkState;
 
 import com.google.flatbuffers.FlatBufferBuilder;
 
-import io.netty.buffer.*;
+import siren.io.netty.buffer.*;
 
 import org.apache.arrow.memory.*;
 import org.apache.arrow.util.Preconditions;

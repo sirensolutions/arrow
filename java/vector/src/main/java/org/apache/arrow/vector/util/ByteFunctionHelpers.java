@@ -19,8 +19,8 @@ package org.apache.arrow.vector.util;
 
 import org.apache.arrow.memory.BoundsChecking;
 
-import io.netty.buffer.ArrowBuf;
-import io.netty.util.internal.PlatformDependent;
+import siren.io.netty.buffer.ArrowBuf;
+import siren.io.netty.util.internal.PlatformDependent;
 
 /**
  * Utility methods for memory comparison at a byte level.

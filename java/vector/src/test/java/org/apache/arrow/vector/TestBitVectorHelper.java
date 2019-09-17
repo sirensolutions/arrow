@@ -22,8 +22,8 @@ import static org.junit.Assert.assertEquals;
 import org.apache.arrow.memory.ReferenceManager;
 import org.junit.Test;
 
-import io.netty.buffer.ArrowBuf;
-import io.netty.buffer.PooledByteBufAllocatorL;
+import siren.io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.PooledByteBufAllocatorL;
 
 public class TestBitVectorHelper {
   @Test

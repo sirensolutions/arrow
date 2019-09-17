@@ -19,25 +19,18 @@
   <artifactId>arrow-memory</artifactId>
   <name>Arrow Memory</name>
 
-  <properties>
-    <netty.version>siren-4.1.17.Final</netty.version>
-  </properties>
-
   <dependencies>
     <dependency>
       <groupId>com.google.code.findbugs</groupId>
       <artifactId>jsr305</artifactId>
     </dependency>
-    <!--provided by siren federate core plugin-->
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-buffer</artifactId>
-      <version>${netty.version}</version>
     </dependency>
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-common</artifactId>
-      <version>${netty.version}</version>
     </dependency>
     <!--provided by elasticsearch-->
     <dependency>
@@ -93,24 +86,4 @@
     </plugins>
   </build>
 
-  <profiles>
-    <!-- To deploy to artifactory -->
-    <profile>
-      <id>artifactory</id>
-
-      <distributionManagement>
-        <repository>
-          <id>artifactory-releases</id>
-          <name>artifactory-releases</name>
-          <url>${artifactory.url}/libs-release-local</url>
-        </repository>
-        <snapshotRepository>
-          <id>artifactory-snapshots</id>
-          <name>artifactory-snapshots</name>
-          <url>${artifactory.url}/libs-snapshot-local</url>
-        </snapshotRepository>
-      </distributionManagement>
-
-    </profile>
-  </profiles>
 </project>

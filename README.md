@@ -19,23 +19,46 @@
 
 # Siren fork of Arrow
 
-- The property `drill.enable_unsafe_memory_access` is prefixed with `siren` and its default value is set to `true`.
-- The Siren's fork of netty is used.
+- The properties `drill.enable_unsafe_memory_access` and
+  `siren.arrow.enable_unsafe_memory_access` are prefixed with `siren` and their
+  default value is set to `true`. The first property is deprecated.
+
+- In order to avoid conflict with a version of `netty` used in Elasticsearch, we
+  relocate the netty custom package and dependency in `memory` into a package
+  named `siren`. The relocation is achieved thanks to the maven shade plugin.
+
+- The Siren's fork of `netty` is used in `vector`. This means that `netty`
+  imports in that module need to be prefixed with `siren`.
 
 ## Build
 
-To build the memory bundle:
+To build the `memory` and `vector` modules:
 
 ```sh
 $ cd java
-$ mvn clean package -pl memory
+$ mvn clean package -pl format,memory,vector
 ```
 
-To deploy:
+Because of the default value change of `unsafe_memory_access` property, some
+tests in `vector` fail. To make the build pass for those and run only `vector`
+tests:
 
 ```sh
-$ mvn deploy -Dmaven.test.skip=true -pl memory -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
+mvn package -Dsiren.arrow.enable_unsafe_memory_access=false -pl vector
 ```
+
+## Deploy to Siren's artifactory
+
+```sh
+$ mvn deploy -DskipTests=true -pl format,memory,vector -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
+```
+
+## Update to a new version of Apache Arrow
+
+- add `git@github.com:apache/arrow.git` as the `upstream` remote.
+- execute `git fetch --all --tags`
+- create a temporary branch from `siren-changes`
+- rebase against the new tag.
 
 # Apache Arrow
 

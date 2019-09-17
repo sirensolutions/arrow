@@ -24,7 +24,7 @@ import org.apache.arrow.vector.BufferLayout.BufferType;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Helper class that handles converting a {@link VectorSchemaRoot}

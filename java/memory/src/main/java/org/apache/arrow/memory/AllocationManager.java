@@ -17,21 +17,12 @@
 
 package org.apache.arrow.memory;
 
-import com.google.common.base.Preconditions;
-import io.netty.buffer.ArrowBuf;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.apache.arrow.util.Preconditions;
+
 import io.netty.buffer.PooledByteBufAllocatorL;
 import io.netty.buffer.UnsafeDirectLittleEndian;
-import org.apache.arrow.memory.BaseAllocator.Verbosity;
-import org.apache.arrow.memory.util.AutoCloseableLock;
-import org.apache.arrow.memory.util.HistoricalLog;
-
-import java.util.IdentityHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import static org.apache.arrow.memory.BaseAllocator.indent;
 
 /**
  * Manages the relationship between one or more allocators and a particular UDLE. Ensures that
