@@ -17,7 +17,6 @@
 
 package org.apache.arrow.vector;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
@@ -27,6 +26,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 public class TestVarCharListVector {
 
@@ -46,7 +47,7 @@ public class TestVarCharListVector {
   public void testVarCharListWithNulls() {
     byte[] bytes = "a".getBytes();
     try (ListVector vector = new ListVector("VarList", allocator, FieldType.nullable(Types
-            .MinorType.VARCHAR.getType()), null);
+            .MinorType.VARCHAR.getType()),null);
          ArrowBuf tempBuf = allocator.buffer(bytes.length)) {
       UnionListWriter writer = vector.getWriter();
       writer.allocate();

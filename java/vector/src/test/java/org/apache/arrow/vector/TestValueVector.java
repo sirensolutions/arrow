@@ -78,6 +78,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import siren.io.netty.buffer.ArrowBuf;
+
 
 public class TestValueVector {
   //private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestValueVector.class);

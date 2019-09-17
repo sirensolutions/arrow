@@ -22,9 +22,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import org.apache.arrow.memory.ArrowBuf;
-
-import io.netty.util.internal.PlatformDependent;
+import siren.io.netty.buffer.ArrowBuf;
+import siren.io.netty.util.internal.PlatformDependent;
 
 /**
  * Utility methods for configurable precision Decimal values (e.g. {@link BigDecimal}).
@@ -184,5 +183,10 @@ public class DecimalUtility {
       bytebuf.setBytes(startIndex + byteWidth - bytes.length, bytes, 0, bytes.length);
       bytebuf.setBytes(startIndex, padBytes, 0, byteWidth - bytes.length);
     }
+
+    // Write LE data
+    byte [] padByes = bytes[0] < 0 ? minus_one : zeroes;
+    bytebuf.setBytes(startIndex, bytesLE, 0, bytes.length);
+    bytebuf.setBytes(startIndex + bytes.length, padByes, 0, DECIMAL_BYTE_LENGTH - bytes.length);
   }
 }

@@ -25,15 +25,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.util.ByteFunctionHelpers;
-import org.apache.arrow.memory.util.hash.ArrowBufHasher;
-import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.DensityAwareVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.ValueVector;
-import org.apache.arrow.vector.compare.VectorVisitor;
 import org.apache.arrow.vector.complex.impl.SingleStructReaderImpl;
 import org.apache.arrow.vector.complex.reader.FieldReader;
 import org.apache.arrow.vector.holders.ComplexHolder;
@@ -45,6 +40,8 @@ import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.JsonStringHashMap;
 import org.apache.arrow.vector.util.TransferPair;
 
+import siren.io.netty.buffer.ArrowBuf;
+
 /**
  * A struct vector that has no null values (and no validity buffer).
  * Child Vectors are handled in {@link AbstractStructVector}.
@@ -53,12 +50,7 @@ public class NonNullableStructVector extends AbstractStructVector {
 
   public static NonNullableStructVector empty(String name, BufferAllocator allocator) {
     FieldType fieldType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
-    return new NonNullableStructVector(name, allocator, fieldType, null, ConflictPolicy.CONFLICT_REPLACE, false);
-  }
-
-  public static NonNullableStructVector emptyWithDuplicates(String name, BufferAllocator allocator) {
-    FieldType fieldType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
-    return new NonNullableStructVector(name, allocator, fieldType, null, ConflictPolicy.CONFLICT_APPEND, true);
+    return new NonNullableStructVector(name, allocator, fieldType, null);
   }
 
   private final SingleStructReaderImpl reader = new SingleStructReaderImpl(this);
@@ -66,23 +58,11 @@ public class NonNullableStructVector extends AbstractStructVector {
   public int valueCount;
 
   /**
-   * Constructs a new instance.
-   *
-   * @param name The name of the instance.
-   * @param allocator The allocator to use to allocating/reallocating buffers.
-   * @param fieldType The type of this list.
+   * @deprecated Use FieldType or static constructor instead.
    */
-  public NonNullableStructVector(String name,
-                                 BufferAllocator allocator,
-                                 FieldType fieldType,
-                                 CallBack callBack) {
-    super(name,
-        allocator,
-        callBack,
-        null,
-        true);
-    this.fieldType = checkNotNull(fieldType);
-    this.valueCount = 0;
+  @Deprecated
+  public NonNullableStructVector(String name, BufferAllocator allocator, CallBack callBack) {
+    this(name, allocator, new FieldType(false, ArrowType.Struct.INSTANCE, null, null), callBack);
   }
 
   /**
@@ -92,15 +72,9 @@ public class NonNullableStructVector extends AbstractStructVector {
    * @param allocator The allocator to use to allocating/reallocating buffers.
    * @param fieldType The type of this list.
    * @param callBack A schema change callback.
-   * @param conflictPolicy How to handle duplicate field names in the struct.
    */
-  public NonNullableStructVector(String name,
-                                 BufferAllocator allocator,
-                                 FieldType fieldType,
-                                 CallBack callBack,
-                                 ConflictPolicy conflictPolicy,
-                                 boolean allowConflictPolicyChanges) {
-    super(name, allocator, callBack, conflictPolicy, allowConflictPolicyChanges);
+  public NonNullableStructVector(String name, BufferAllocator allocator, FieldType fieldType, CallBack callBack) {
+    super(name, allocator, callBack);
     this.fieldType = checkNotNull(fieldType);
     this.valueCount = 0;
   }
@@ -116,18 +90,11 @@ public class NonNullableStructVector extends AbstractStructVector {
    * Copies the element at fromIndex in the provided vector to thisIndex.  Reallocates buffers
    * if thisIndex is larger then current capacity.
    */
-  @Override
-  public void copyFrom(int fromIndex, int thisIndex, ValueVector from) {
-    Preconditions.checkArgument(this.getMinorType() == from.getMinorType());
+  public void copyFromSafe(int fromIndex, int thisIndex, NonNullableStructVector from) {
     if (ephPair == null || ephPair.from != from) {
       ephPair = (StructTransferPair) from.makeTransferPair(this);
     }
     ephPair.copyValueSafe(fromIndex, thisIndex);
-  }
-
-  @Override
-  public void copyFromSafe(int fromIndex, int thisIndex, ValueVector from) {
-    copyFrom(fromIndex, thisIndex, from);
   }
 
   @Override
@@ -141,16 +108,16 @@ public class NonNullableStructVector extends AbstractStructVector {
 
   @Override
   public void setInitialCapacity(int numRecords) {
-    for (final ValueVector v : this) {
+    for (final ValueVector v : (Iterable<ValueVector>) this) {
       v.setInitialCapacity(numRecords);
     }
   }
 
   @Override
   public void setInitialCapacity(int valueCount, double density) {
-    for (final ValueVector vector : this) {
+    for (final ValueVector vector : (Iterable<ValueVector>) this) {
       if (vector instanceof DensityAwareVector) {
-        ((DensityAwareVector) vector).setInitialCapacity(valueCount, density);
+        ((DensityAwareVector)vector).setInitialCapacity(valueCount, density);
       } else {
         vector.setInitialCapacity(valueCount);
       }
@@ -163,7 +130,7 @@ public class NonNullableStructVector extends AbstractStructVector {
       return 0;
     }
     long buffer = 0;
-    for (final ValueVector v : this) {
+    for (final ValueVector v : (Iterable<ValueVector>) this) {
       buffer += v.getBufferSize();
     }
 
@@ -177,7 +144,7 @@ public class NonNullableStructVector extends AbstractStructVector {
     }
 
     long bufferSize = 0;
-    for (final ValueVector v : this) {
+    for (final ValueVector v : (Iterable<ValueVector>) this) {
       bufferSize += v.getBufferSizeFor(valueCount);
     }
 
@@ -206,12 +173,7 @@ public class NonNullableStructVector extends AbstractStructVector {
 
   @Override
   public TransferPair getTransferPair(String ref, BufferAllocator allocator, CallBack callBack) {
-    return new StructTransferPair(this, new NonNullableStructVector(name,
-        allocator,
-        fieldType,
-        callBack,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+    return new StructTransferPair(this, new NonNullableStructVector(name, allocator, fieldType, callBack), false);
   }
 
   @Override
@@ -221,12 +183,7 @@ public class NonNullableStructVector extends AbstractStructVector {
 
   @Override
   public TransferPair getTransferPair(String ref, BufferAllocator allocator) {
-    return new StructTransferPair(this, new NonNullableStructVector(ref,
-        allocator,
-        fieldType,
-        callBack,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+    return new StructTransferPair(this, new NonNullableStructVector(ref, allocator, fieldType, callBack), false);
   }
 
   /**
@@ -330,27 +287,6 @@ public class NonNullableStructVector extends AbstractStructVector {
   }
 
   @Override
-  public int hashCode(int index) {
-    return hashCode(index, null);
-  }
-
-  @Override
-  public int hashCode(int index, ArrowBufHasher hasher) {
-    int hash = 0;
-    for (FieldVector v : getChildren()) {
-      if (index < v.getValueCount()) {
-        hash = ByteFunctionHelpers.combineHash(hash, v.hashCode(index, hasher));
-      }
-    }
-    return hash;
-  }
-
-  @Override
-  public <OUT, IN> OUT accept(VectorVisitor<OUT, IN> visitor, IN value) {
-    return visitor.visit(this, value);
-  }
-
-  @Override
   public boolean isNull(int index) {
     return false;
   }
@@ -436,5 +372,4 @@ public class NonNullableStructVector extends AbstractStructVector {
   public List<FieldVector> getChildrenFromFields() {
     return getChildren();
   }
-
 }

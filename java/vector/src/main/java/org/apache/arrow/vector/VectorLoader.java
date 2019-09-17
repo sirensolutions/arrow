@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.util.Collections2;
 import org.apache.arrow.vector.compression.CompressionCodec;
 import org.apache.arrow.vector.compression.CompressionUtil;
@@ -31,6 +30,8 @@ import org.apache.arrow.vector.compression.NoCompressionCodec;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Field;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Loads buffers into vectors.
@@ -134,4 +135,5 @@ public class VectorLoader {
       }
     }
   }
+
 }

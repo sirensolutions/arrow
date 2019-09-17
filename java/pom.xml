@@ -123,7 +123,6 @@
             <exclude>**/*.proto</exclude>
             <exclude>**/*.fmpp</exclude>
             <exclude>**/target/**</exclude>
-            <exclude>**/*.iml</exclude>
             <exclude>**/*.tdd</exclude>
             <exclude>**/*.project</exclude>
             <exclude>**/TAGS</exclude>
@@ -137,6 +136,7 @@
             <exclude>**/*.linux</exclude>
             <exclude>**/client/build/**</exclude>
             <exclude>**/*.tbl</exclude>
+            <exclude>**/*.iml</exclude>
           </excludes>
         </configuration>
       </plugin>
@@ -585,6 +585,7 @@
       <scope>test</scope>
     </dependency>
 
+
     <dependency>
       <groupId>org.junit.platform</groupId>
       <artifactId>junit-platform-runner</artifactId>
@@ -674,5 +675,53 @@
     <module>memory</module>
     <module>vector</module>
     <module>tools</module>
+    <module>adapter/jdbc</module>
+    <module>plasma</module>
+    <module>flight</module>
+    <module>performance</module>
+    <module>algorithm</module>
   </modules>
+
+  <profiles>
+    <profile>
+      <id>java-8</id>
+      <activation>
+        <jdk>[1.8,)</jdk>
+      </activation>
+      <properties>
+        <doclint>none</doclint>
+        <additionalparam>-Xdoclint:none</additionalparam>
+      </properties>
+    </profile>
+
+    <profile>
+      <!-- orc java depends on arrow cpp, and arrow cpp isn't enabled by default yet -->
+      <id>arrow-jni</id>
+      <modules>
+        <!-- these have dependency on cpp -->
+        <module>adapter/orc</module>
+        <module>gandiva</module>
+      </modules>
+    </profile>
+
+    <!-- To deploy to Siren artifactory -->
+    <profile>
+      <id>artifactory</id>
+
+      <distributionManagement>
+        <repository>
+          <id>artifactory-releases</id>
+          <name>artifactory-releases</name>
+          <url>${artifactory.url}/libs-release-local</url>
+        </repository>
+        <snapshotRepository>
+          <id>artifactory-snapshots</id>
+          <name>artifactory-snapshots</name>
+          <url>${artifactory.url}/libs-snapshot-local</url>
+        </snapshotRepository>
+      </distributionManagement>
+
+    </profile>
+  </profiles>
+
 </project>

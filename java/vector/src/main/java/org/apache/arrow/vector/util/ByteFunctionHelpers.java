@@ -17,14 +17,14 @@
 
 package org.apache.arrow.vector.util;
 
-import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BoundsChecking;
+
+import siren.io.netty.buffer.ArrowBuf;
+import siren.io.netty.util.internal.PlatformDependent;
 
 /**
- * Helper class for comparing byte buffers.
- *
- * @deprecated This class will be removed. Please use org.apache.arrow.memory.util.ByteFunctionHelpers instead.
+ * Utility methods for memory comparison at a byte level.
  */
-@Deprecated
 public class ByteFunctionHelpers {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ByteFunctionHelpers.class);
 
@@ -91,6 +91,7 @@ public class ByteFunctionHelpers {
     return org.apache.arrow.memory.util.ByteFunctionHelpers.compare(left, lStart, lEnd, right, rStart, rEnd);
   }
 
+
   /**
    * Compares the two specified {@code long} values, treating them as unsigned values between
    * {@code 0} and {@code 2^64 - 1} inclusive.
@@ -109,4 +110,5 @@ public class ByteFunctionHelpers {
   public static int unsignedIntCompare(int a, int b) {
     return org.apache.arrow.memory.util.ByteFunctionHelpers.unsignedIntCompare(a, b);
   }
+
 }

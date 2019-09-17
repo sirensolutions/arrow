@@ -22,7 +22,6 @@ import static org.apache.arrow.vector.NullCheckingForGet.NULL_CHECKING_ENABLED;
 
 import java.time.Duration;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.complex.impl.DurationReaderImpl;
 import org.apache.arrow.vector.complex.reader.FieldReader;
@@ -34,6 +33,8 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.TransferPair;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * DurationVector implements a fixed width vector (8 bytes) of

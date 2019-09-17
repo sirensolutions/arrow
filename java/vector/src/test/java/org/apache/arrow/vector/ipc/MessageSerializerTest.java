@@ -32,7 +32,6 @@ import java.nio.channels.Channels;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
@@ -49,6 +48,8 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 public class MessageSerializerTest {
 

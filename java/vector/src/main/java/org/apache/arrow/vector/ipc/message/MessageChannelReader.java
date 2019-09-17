@@ -20,9 +20,10 @@ package org.apache.arrow.vector.ipc.message;
 import java.io.IOException;
 
 import org.apache.arrow.flatbuf.Message;
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.ipc.ReadChannel;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Reads a sequence of messages using a ReadChannel.
@@ -63,7 +64,7 @@ public class MessageChannelReader implements AutoCloseable {
 
     // Read message body data if defined in message
     if (result.messageHasBody()) {
-      long bodyLength = result.getMessageBodyLength();
+      int bodyLength = (int) result.getMessageBodyLength();
       bodyBuffer = MessageSerializer.readMessageBody(in, bodyLength, allocator);
     }
 

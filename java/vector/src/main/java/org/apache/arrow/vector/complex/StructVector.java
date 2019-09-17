@@ -17,19 +17,13 @@
 
 package org.apache.arrow.vector.complex;
 
-import static org.apache.arrow.memory.util.LargeMemoryUtil.checkedCastToInt;
 import static org.apache.arrow.util.Preconditions.checkNotNull;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.util.ArrowBufPointer;
-import org.apache.arrow.memory.util.CommonUtil;
-import org.apache.arrow.memory.util.hash.ArrowBufHasher;
-import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.BaseValueVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.BufferBacked;
@@ -41,10 +35,13 @@ import org.apache.arrow.vector.holders.ComplexHolder;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.ArrowType.Struct;
+import org.apache.arrow.vector.types.pojo.DictionaryEncoding;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.OversizedAllocationException;
 import org.apache.arrow.vector.util.TransferPair;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * A Struct vector consists of nullability/validity buffer and children vectors
@@ -55,12 +52,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
 
   public static StructVector empty(String name, BufferAllocator allocator) {
     FieldType fieldType = FieldType.nullable(Struct.INSTANCE);
-    return new StructVector(name, allocator, fieldType, null, ConflictPolicy.CONFLICT_REPLACE, false);
-  }
-
-  public static StructVector emptyWithDuplicates(String name, BufferAllocator allocator) {
-    FieldType fieldType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
-    return new StructVector(name, allocator, fieldType, null, ConflictPolicy.CONFLICT_APPEND, true);
+    return new StructVector(name, allocator, fieldType, null);
   }
 
   private final NullableStructReaderImpl reader = new NullableStructReaderImpl(this);
@@ -70,24 +62,19 @@ public class StructVector extends NonNullableStructVector implements FieldVector
   private int validityAllocationSizeInBytes;
 
   /**
-   * Constructs a new instance.
-   *
-   * @param name The name of the instance.
-   * @param allocator The allocator to use to allocating/reallocating buffers.
-   * @param fieldType The type of this list.
-   * @param callBack A schema change callback.
+   * @deprecated Use FieldType or static constructor instead.
    */
-  public StructVector(String name,
-                      BufferAllocator allocator,
-                      FieldType fieldType,
-                      CallBack callBack) {
-    super(name,
-        checkNotNull(allocator),
-        fieldType,
-        callBack);
-    this.validityBuffer = allocator.getEmpty();
-    this.validityAllocationSizeInBytes =
-        BitVectorHelper.getValidityBufferSize(BaseValueVector.INITIAL_VALUE_ALLOCATION);
+  @Deprecated
+  public StructVector(String name, BufferAllocator allocator, CallBack callBack) {
+    this(name, allocator, FieldType.nullable(ArrowType.Struct.INSTANCE), callBack);
+  }
+
+  /**
+   * @deprecated Use FieldType or static constructor instead.
+   */
+  @Deprecated
+  public StructVector(String name, BufferAllocator allocator, DictionaryEncoding dictionary, CallBack callBack) {
+    this(name, allocator, new FieldType(true, ArrowType.Struct.INSTANCE, dictionary, null), callBack);
   }
 
   /**
@@ -97,16 +84,9 @@ public class StructVector extends NonNullableStructVector implements FieldVector
    * @param allocator The allocator to use to allocating/reallocating buffers.
    * @param fieldType The type of this list.
    * @param callBack A schema change callback.
-   * @param conflictPolicy policy to determine how duplicate names are handled.
-   * @param allowConflictPolicyChanges wether duplicate names are allowed at all.
    */
-  public StructVector(String name,
-                      BufferAllocator allocator,
-                      FieldType fieldType,
-                      CallBack callBack,
-                      ConflictPolicy conflictPolicy,
-                      boolean allowConflictPolicyChanges) {
-    super(name, checkNotNull(allocator), fieldType, callBack, conflictPolicy, allowConflictPolicyChanges);
+  public StructVector(String name, BufferAllocator allocator, FieldType fieldType, CallBack callBack) {
+    super(name, checkNotNull(allocator), fieldType, callBack);
     this.validityBuffer = allocator.getEmpty();
     this.validityAllocationSizeInBytes =
       BitVectorHelper.getValidityBufferSize(BaseValueVector.INITIAL_VALUE_ALLOCATION);
@@ -123,7 +103,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
     validityBuffer.getReferenceManager().release();
     validityBuffer = BitVectorHelper.loadValidityBuffer(fieldNode, bitBuffer, allocator);
     valueCount = fieldNode.getLength();
-    validityAllocationSizeInBytes = checkedCastToInt(validityBuffer.capacity());
+    validityAllocationSizeInBytes = validityBuffer.capacity();
   }
 
   @Override
@@ -157,12 +137,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
 
   @Override
   public TransferPair getTransferPair(BufferAllocator allocator) {
-    return new NullableStructTransferPair(this, new StructVector(name,
-        allocator,
-        fieldType,
-        null,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+    return new NullableStructTransferPair(this, new StructVector(name, allocator, fieldType, null), false);
   }
 
   @Override
@@ -172,22 +147,12 @@ public class StructVector extends NonNullableStructVector implements FieldVector
 
   @Override
   public TransferPair getTransferPair(String ref, BufferAllocator allocator) {
-    return new NullableStructTransferPair(this, new StructVector(ref,
-        allocator,
-        fieldType,
-        null,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+    return new NullableStructTransferPair(this, new StructVector(ref, allocator, fieldType, null), false);
   }
 
   @Override
   public TransferPair getTransferPair(String ref, BufferAllocator allocator, CallBack callBack) {
-    return new NullableStructTransferPair(this, new StructVector(ref,
-        allocator,
-        fieldType,
-        callBack,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+    return new NullableStructTransferPair(this, new StructVector(ref, allocator, fieldType, callBack), false);
   }
 
   /**
@@ -221,8 +186,6 @@ public class StructVector extends NonNullableStructVector implements FieldVector
 
     @Override
     public void splitAndTransfer(int startIndex, int length) {
-      Preconditions.checkArgument(startIndex >= 0 && length >= 0 && startIndex + length <= valueCount,
-          "Invalid parameters startIndex: %s, length: %s for valueCount: %s", startIndex, length, valueCount);
       target.clear();
       splitAndTransferValidityBuffer(startIndex, length, target);
       super.splitAndTransfer(startIndex, length);
@@ -233,6 +196,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
    * transfer the validity.
    */
   private void splitAndTransferValidityBuffer(int startIndex, int length, StructVector target) {
+    assert startIndex + length <= valueCount;
     int firstByteSource = BitVectorHelper.byteIndex(startIndex);
     int lastByteSource = BitVectorHelper.byteIndex(valueCount - 1);
     int byteSizeTarget = BitVectorHelper.getValidityBufferSize(length);
@@ -292,7 +256,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
    * @return number of elements that validity buffer can hold
    */
   private int getValidityBufferValueCapacity() {
-    return checkedCastToInt(validityBuffer.capacity() * 8);
+    return validityBuffer.capacity() * 8;
   }
 
   /**
@@ -313,7 +277,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
    *
    * @param clear Whether to clear vector before returning; the buffers will still be refcounted
    *              but the returned array will be the only reference to them
-   * @return The underlying {@link ArrowBuf buffers} that is used by this
+   * @return The underlying {@link siren.io.netty.buffer.ArrowBuf buffers} that is used by this
    *         vector instance.
    */
   @Override
@@ -452,14 +416,11 @@ public class StructVector extends NonNullableStructVector implements FieldVector
   }
 
   private void reallocValidityBuffer() {
-    final int currentBufferCapacity = checkedCastToInt(validityBuffer.capacity());
-    long newAllocationSize = currentBufferCapacity * 2;
-    if (newAllocationSize == 0) {
-      if (validityAllocationSizeInBytes > 0) {
-        newAllocationSize = validityAllocationSizeInBytes;
-      } else {
-        newAllocationSize = BitVectorHelper.getValidityBufferSize(BaseValueVector.INITIAL_VALUE_ALLOCATION) * 2;
-      }
+    final int currentBufferCapacity = validityBuffer.capacity();
+    long baseSize = validityAllocationSizeInBytes;
+
+    if (baseSize < (long) currentBufferCapacity) {
+      baseSize = (long) currentBufferCapacity;
     }
     newAllocationSize = CommonUtil.nextPowerOfTwo(newAllocationSize);
     assert newAllocationSize >= 1;
@@ -516,26 +477,8 @@ public class StructVector extends NonNullableStructVector implements FieldVector
   }
 
   @Override
-  public int hashCode(int index) {
-    return hashCode(index, null);
-  }
-
-  @Override
-  public int hashCode(int index, ArrowBufHasher hasher) {
-    if (isSet(index) == 0) {
-      return ArrowBufPointer.NULL_HASH_CODE;
-    } else {
-      return super.hashCode(index, hasher);
-    }
-  }
-
-  @Override
   public void get(int index, ComplexHolder holder) {
     holder.isSet = isSet(index);
-    if (holder.isSet == 0) {
-      holder.reader = null;
-      return;
-    }
     super.get(index, holder);
   }
 
@@ -572,7 +515,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
       /* realloc the inner buffers if needed */
       reallocValidityBuffer();
     }
-    BitVectorHelper.setBit(validityBuffer, index);
+    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
   }
 
   /**
@@ -583,12 +526,12 @@ public class StructVector extends NonNullableStructVector implements FieldVector
       /* realloc the inner buffers if needed */
       reallocValidityBuffer();
     }
-    BitVectorHelper.unsetBit(validityBuffer, index);
+    BitVectorHelper.setValidityBit(validityBuffer, index, 0);
   }
 
   @Override
   public void setValueCount(int valueCount) {
-    Preconditions.checkArgument(valueCount >= 0);
+    assert valueCount >= 0;
     while (valueCount > getValidityBufferValueCapacity()) {
       /* realloc the inner buffers if needed */
       reallocValidityBuffer();
@@ -596,5 +539,4 @@ public class StructVector extends NonNullableStructVector implements FieldVector
     super.setValueCount(valueCount);
     this.valueCount = valueCount;
   }
-
 }

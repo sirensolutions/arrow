@@ -21,13 +21,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.ipc.message.FBSerializable;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.flatbuffers.FlatBufferBuilder;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Wrapper around a WritableByteChannel that maintains the position as well adding
@@ -36,17 +37,9 @@ import com.google.flatbuffers.FlatBufferBuilder;
  * <p>All write methods in this class follow full write semantics, i.e., write calls
  * only return after requested data has been fully written. Note this is different
  * from java WritableByteChannel interface where partial write is allowed
- * </p>
- * <p>
- *   Please note that objects of this class are not thread-safe.
- * </p>
  */
 public class WriteChannel implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(WriteChannel.class);
-
-  private static final byte[] ZERO_BYTES = new byte[8];
-
-  private final byte[] intBuf = new byte[4];
 
   private long currentPosition = 0;
 
@@ -69,33 +62,19 @@ public class WriteChannel implements AutoCloseable {
     return write(ByteBuffer.wrap(buffer));
   }
 
-  long write(byte[] buffer, int offset, int length) throws IOException {
-    return write(ByteBuffer.wrap(buffer, offset, length));
-  }
-
   /**
    * Writes <zeroCount>zeroCount</zeroCount> zeros the underlying channel.
    */
-  public long writeZeros(long zeroCount) throws IOException {
-    long bytesWritten = 0;
-    long wholeWordsEnd = zeroCount - 8;
-    while (bytesWritten <= wholeWordsEnd) {
-      bytesWritten += write(ZERO_BYTES);
-    }
-
-    if (bytesWritten < zeroCount) {
-      bytesWritten += write(ZERO_BYTES, 0, (int) (zeroCount - bytesWritten));
-    }
-    return bytesWritten;
+  public long writeZeros(int zeroCount) throws IOException {
+    return write(new byte[zeroCount]);
   }
 
   /**
-   * Writes enough bytes to align the channel to an 8-byte boundary.
+   * Writes enough bytes to align the channel to an 8-byte bounary.
    */
   public long align() throws IOException {
-    int trailingByteSize = (int) (currentPosition % 8);
-    if (trailingByteSize != 0) { // align on 8 byte boundaries
-      return writeZeros(8 - trailingByteSize);
+    if (currentPosition % 8 != 0) { // align on 8 byte boundaries
+      return writeZeros(8 - (int) (currentPosition % 8));
     }
     return 0;
   }
@@ -105,9 +84,7 @@ public class WriteChannel implements AutoCloseable {
    */
   public long write(ByteBuffer buffer) throws IOException {
     long length = buffer.remaining();
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Writing buffer with size: {}", length);
-    }
+    LOGGER.debug("Writing buffer with size: {}", length);
     while (buffer.hasRemaining()) {
       out.write(buffer);
     }
@@ -119,23 +96,17 @@ public class WriteChannel implements AutoCloseable {
    * Writes <code>v</code> in little-endian format to the underlying channel.
    */
   public long writeIntLittleEndian(int v) throws IOException {
-    MessageSerializer.intToBytes(v, intBuf);
-    return write(intBuf);
+    byte[] outBuffer = new byte[4];
+    MessageSerializer.intToBytes(v, outBuffer);
+    return write(outBuffer);
   }
 
   /**
    * Writes the buffer to the underlying channel.
    */
   public void write(ArrowBuf buffer) throws IOException {
-    long bytesWritten = 0;
-    while (bytesWritten < buffer.readableBytes()) {
-      int bytesToWrite = (int) Math.min(Integer.MAX_VALUE, buffer.readableBytes() - bytesWritten);
-      ByteBuffer nioBuffer = buffer.nioBuffer(buffer.readerIndex() + bytesWritten,
-           bytesToWrite);
-      write(nioBuffer);
-      bytesWritten += bytesToWrite;
-    }
-
+    ByteBuffer nioBuffer = buffer.nioBuffer(buffer.readerIndex(), buffer.readableBytes());
+    write(nioBuffer);
   }
 
   /**

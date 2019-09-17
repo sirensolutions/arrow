@@ -18,15 +18,15 @@
 package org.apache.arrow.vector;
 
 import static org.junit.Assert.*;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.holders.FixedSizeBinaryHolder;
 import org.apache.arrow.vector.holders.NullableFixedSizeBinaryHolder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 public class TestFixedSizeBinaryVector {
   private static final int numValues = 123;
@@ -150,18 +150,6 @@ public class TestFixedSizeBinaryVector {
   }
 
   @Test
-  public void testSetUsingNull() {
-    final byte[] value = null;
-    for (int i = 0; i < numValues; i++) {
-      final int index = i;
-      Exception e = assertThrows(NullPointerException.class, () -> {
-        vector.set(index, value);
-      });
-      assertEquals("expecting a valid byte array", e.getMessage());
-    }
-  }
-
-  @Test
   public void testSetUsingHolder() {
     for (int i = 0; i < numValues; i++) {
       vector.set(i, holders[i]);
@@ -269,11 +257,5 @@ public class TestFixedSizeBinaryVector {
     vector.setSafe(0, largeHolder);
     vector.setSafe(0, largeNullableHolder);
     vector.setSafe(0, largeBuf);
-  }
-
-  @Test
-  public void testGetNull() {
-    vector.setNull(0);
-    assertNull(vector.get(0));
   }
 }

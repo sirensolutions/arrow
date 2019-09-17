@@ -29,7 +29,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.memory.util.ArrowBufPointer;
@@ -58,6 +57,8 @@ import org.apache.arrow.vector.util.JsonStringArrayList;
 import org.apache.arrow.vector.util.OversizedAllocationException;
 import org.apache.arrow.vector.util.SchemaChangeRuntimeException;
 import org.apache.arrow.vector.util.TransferPair;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /** A ListVector where every list value is of the same size. */
 public class FixedSizeListVector extends BaseValueVector implements BaseListVector, PromotableVector {

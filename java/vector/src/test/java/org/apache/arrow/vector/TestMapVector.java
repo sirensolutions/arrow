@@ -25,7 +25,6 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.Map;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
@@ -41,6 +40,8 @@ import org.apache.arrow.vector.util.TransferPair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 public class TestMapVector {
 
@@ -323,7 +324,7 @@ public class TestMapVector {
 
       mapVector.setValueCount(5);
 
-      assertEquals(4, mapVector.getLastSet());
+      assertEquals(5, mapVector.getLastSet());
 
       /* get offset buffer */
       final ArrowBuf offsetBuffer = mapVector.getOffsetBuffer();
@@ -551,7 +552,7 @@ public class TestMapVector {
 
       mapWriter.endMap();
 
-      assertEquals(1, mapVector.getLastSet());
+      assertEquals(2, mapVector.getLastSet());
 
       mapWriter.setValueCount(2);
 
@@ -568,7 +569,7 @@ public class TestMapVector {
       Map<?, ?> resultStruct = (Map<?, ?>) resultSet.get(0);
       assertEquals(1L, getResultKey(resultStruct));
       ArrayList<Long> list = (ArrayList<Long>) getResultValue(resultStruct);
-      assertEquals(3, list.size()); // value is a list with 3 elements
+      assertEquals(3, list.size());  // value is a list with 3 elements
       assertEquals(new Long(50), list.get(0));
       assertEquals(new Long(100), list.get(1));
       assertEquals(new Long(200), list.get(2));
@@ -576,7 +577,7 @@ public class TestMapVector {
       // Second Map entry
       resultStruct = (Map<?, ?>) resultSet.get(1);
       list = (ArrayList<Long>) getResultValue(resultStruct);
-      assertEquals(4, list.size()); // value is a list with 4 elements
+      assertEquals(4, list.size());  // value is a list with 4 elements
       assertEquals(new Long(75), list.get(0));
       assertEquals(new Long(125), list.get(1));
       assertEquals(new Long(150), list.get(2));
@@ -590,14 +591,14 @@ public class TestMapVector {
       resultStruct = (Map<?, ?>) resultSet.get(0);
       assertEquals(3L, getResultKey(resultStruct));
       list = (ArrayList<Long>) getResultValue(resultStruct);
-      assertEquals(1, list.size()); // value is a list with 1 element
+      assertEquals(1, list.size());  // value is a list with 1 element
       assertEquals(new Long(10), list.get(0));
 
       // Second Map entry
       resultStruct = (Map<?, ?>) resultSet.get(1);
       assertEquals(4L, getResultKey(resultStruct));
       list = (ArrayList<Long>) getResultValue(resultStruct);
-      assertEquals(2, list.size()); // value is a list with 1 element
+      assertEquals(2, list.size());  // value is a list with 1 element
       assertEquals(new Long(15), list.get(0));
       assertEquals(new Long(20), list.get(1));
 
@@ -605,7 +606,7 @@ public class TestMapVector {
       resultStruct = (Map<?, ?>) resultSet.get(2);
       assertEquals(5L, getResultKey(resultStruct));
       list = (ArrayList<Long>) getResultValue(resultStruct);
-      assertEquals(3, list.size()); // value is a list with 1 element
+      assertEquals(3, list.size());  // value is a list with 1 element
       assertEquals(new Long(25), list.get(0));
       assertEquals(new Long(30), list.get(1));
       assertEquals(new Long(35), list.get(2));

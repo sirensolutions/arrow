@@ -33,7 +33,6 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.util.Collections2;
@@ -42,7 +41,6 @@ import org.apache.arrow.vector.DateMilliVector;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.TimeMilliVector;
 import org.apache.arrow.vector.UInt1Vector;
 import org.apache.arrow.vector.UInt2Vector;
@@ -90,6 +88,8 @@ import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import siren.io.netty.buffer.ArrowBuf;
+
 /**
  * Helps testing the file formats.
  */
@@ -111,7 +111,7 @@ public class BaseFileTest {
 
   private static short [] uint1Values = new short[]{0, 255, 1, 128, 2};
   private static char [] uint2Values = new char[]{0, Character.MAX_VALUE, 1, Short.MAX_VALUE * 2, 2};
-  private static long [] uint4Values = new long[]{0, Integer.MAX_VALUE + 1L, 1, Integer.MAX_VALUE * 2L, 2};
+  private static long [] uint4Values = new long[]{0, Integer.MAX_VALUE + 1, 1, Integer.MAX_VALUE * 2, 2};
   private static BigInteger[] uint8Values = new BigInteger[]{BigInteger.valueOf(0),
       BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(2)), BigInteger.valueOf(2),
       BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(1)), BigInteger.valueOf(2)};
@@ -132,11 +132,11 @@ public class BaseFileTest {
       uint1Writer.setPosition(i);
       // TODO: Fix add safe write methods on uint methods.
       uint1Writer.setPosition(i);
-      uint1Writer.writeUInt1((byte) uint1Values[i % uint1Values.length] );
+      uint1Writer.writeUInt1((byte)uint1Values[i % uint1Values.length] );
       uint2Writer.setPosition(i);
-      uint2Writer.writeUInt2((char) uint2Values[i % uint2Values.length] );
+      uint2Writer.writeUInt2((char)uint2Values[i % uint2Values.length] );
       uint4Writer.setPosition(i);
-      uint4Writer.writeUInt4((int) uint4Values[i % uint4Values.length] );
+      uint4Writer.writeUInt4((int)uint4Values[i % uint4Values.length] );
       uint8Writer.setPosition(i);
       uint8Writer.writeUInt8(uint8Values[i % uint8Values.length].longValue());
       bigIntWriter.setPosition(i);
@@ -151,14 +151,14 @@ public class BaseFileTest {
   protected void validateContent(int count, VectorSchemaRoot root) {
     for (int i = 0; i < count; i++) {
       Assert.assertEquals(i, root.getVector("int").getObject(i));
-      Assert.assertEquals((Short) uint1Values[i % uint1Values.length],
-          ((UInt1Vector) root.getVector("uint1")).getObjectNoOverflow(i));
-      Assert.assertEquals("Failed for index: " + i, (Character) uint2Values[i % uint2Values.length],
-          (Character) ((UInt2Vector) root.getVector("uint2")).get(i));
-      Assert.assertEquals("Failed for index: " + i, (Long) uint4Values[i % uint4Values.length],
-          ((UInt4Vector) root.getVector("uint4")).getObjectNoOverflow(i));
+      Assert.assertEquals((Short)uint1Values[i % uint1Values.length],
+          ((UInt1Vector)root.getVector("uint1")).getObjectNoOverflow(i));
+      Assert.assertEquals("Failed for index: " + i, (Character)uint2Values[i % uint2Values.length],
+          (Character)((UInt2Vector)root.getVector("uint2")).get(i));
+      Assert.assertEquals("Failed for index: " + i, (Long)uint4Values[i % uint4Values.length],
+          ((UInt4Vector)root.getVector("uint4")).getObjectNoOverflow(i));
       Assert.assertEquals("Failed for index: " + i, uint8Values[i % uint8Values.length],
-          ((UInt8Vector) root.getVector("uint8")).getObjectNoOverflow(i));
+          ((UInt8Vector)root.getVector("uint8")).getObjectNoOverflow(i));
       Assert.assertEquals(Long.valueOf(i), root.getVector("bigInt").getObject(i));
       Assert.assertEquals(i == 0 ? Float.NaN : i, root.getVector("float").getObject(i));
     }
@@ -261,7 +261,7 @@ public class BaseFileTest {
       timeStampMilliTZWriter.writeTimeStampMilliTZ(dt.atZone(ZoneId.of("Europe/Paris")).toInstant().toEpochMilli());
       // Timestamp as nanoseconds since epoch
       timeStampNanoWriter.setPosition(i);
-      long tsNanos = dt.toInstant(ZoneOffset.UTC).toEpochMilli() * 1_000_000 + i; // need to add back in nano val
+      long tsNanos = dt.toInstant(ZoneOffset.UTC).toEpochMilli() * 1_000_000 + i;  // need to add back in nano val
       timeStampNanoWriter.writeTimeStampNano(tsNanos);
     }
     writer.setValueCount(count);
@@ -323,16 +323,16 @@ public class BaseFileTest {
     vector1A.setValueCount(6);
 
     FieldVector encodedVector1A = (FieldVector) DictionaryEncoder.encode(vector1A, dictionary1);
-    vector1A.close(); // Done with this vector after encoding
+    vector1A.close();  // Done with this vector after encoding
 
     // Write this vector using indices instead of encoding
     IntVector encodedVector1B = new IntVector("varcharB", bufferAllocator);
     encodedVector1B.allocateNewSafe();
-    encodedVector1B.set(0, 2); // "baz"
-    encodedVector1B.set(1, 1); // "bar"
-    encodedVector1B.set(2, 2); // "baz"
-    encodedVector1B.set(4, 1); // "bar"
-    encodedVector1B.set(5, 0); // "foo"
+    encodedVector1B.set(0, 2);  // "baz"
+    encodedVector1B.set(1, 1);  // "bar"
+    encodedVector1B.set(2, 2);  // "baz"
+    encodedVector1B.set(4, 1);  // "bar"
+    encodedVector1B.set(5, 0);  // "foo"
     encodedVector1B.setValueCount(6);
 
     VarCharVector vector2 = newVarCharVector("sizes", bufferAllocator);
@@ -344,7 +344,7 @@ public class BaseFileTest {
     vector2.setValueCount(6);
 
     FieldVector encodedVector2 = (FieldVector) DictionaryEncoder.encode(vector2, dictionary2);
-    vector2.close(); // Done with this vector after encoding
+    vector2.close();  // Done with this vector after encoding
 
     List<Field> fields = Arrays.asList(encodedVector1A.getField(), encodedVector1B.getField(),
         encodedVector2.getField());
@@ -532,26 +532,6 @@ public class BaseFileTest {
     }
   }
 
-  protected VectorSchemaRoot writeNullData(int valueCount) {
-    NullVector nullVector1 = new NullVector();
-    NullVector nullVector2 = new NullVector();
-    nullVector1.setValueCount(valueCount);
-    nullVector2.setValueCount(valueCount);
-
-    List<Field> fields = Collections2.asImmutableList(nullVector1.getField(), nullVector2.getField());
-    List<FieldVector> vectors = Collections2.asImmutableList(nullVector1, nullVector2);
-    return new VectorSchemaRoot(fields, vectors, valueCount);
-  }
-
-  protected void validateNullData(VectorSchemaRoot root, int valueCount) {
-
-    NullVector vector1 = (NullVector) root.getFieldVectors().get(0);
-    NullVector vector2 = (NullVector) root.getFieldVectors().get(1);
-
-    assertEquals(valueCount, vector1.getValueCount());
-    assertEquals(valueCount, vector2.getValueCount());
-  }
-
   public void validateUnionData(int count, VectorSchemaRoot root) {
     FieldReader unionReader = root.getVector("union").getReader();
     for (int i = 0; i < count; i++) {
@@ -663,7 +643,7 @@ public class BaseFileTest {
     }
 
     // ListVector lastSet should be the index of last value + 1
-    Assert.assertEquals(listVector.getLastSet(), count - 1);
+    Assert.assertEquals(listVector.getLastSet(), count);
 
     // VarBinaryVector lastSet should be the index of last value
     VarBinaryVector binaryVector = (VarBinaryVector) listVector.getChildrenFromFields().get(0);

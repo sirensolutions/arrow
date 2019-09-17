@@ -23,7 +23,6 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 
 import org.apache.arrow.flatbuf.MessageHeader;
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.compression.CompressionCodec;
@@ -37,6 +36,8 @@ import org.apache.arrow.vector.types.MetadataVersion;
 import org.apache.arrow.vector.types.pojo.DictionaryEncoding;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.validate.MetadataV4UnionChecker;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * This class reads from an input stream and produces ArrowRecordBatches.

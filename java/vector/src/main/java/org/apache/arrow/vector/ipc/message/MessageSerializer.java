@@ -31,7 +31,6 @@ import org.apache.arrow.flatbuf.Message;
 import org.apache.arrow.flatbuf.MessageHeader;
 import org.apache.arrow.flatbuf.MetadataVersion;
 import org.apache.arrow.flatbuf.RecordBatch;
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.compression.NoCompressionCodec;
@@ -40,6 +39,8 @@ import org.apache.arrow.vector.ipc.WriteChannel;
 import org.apache.arrow.vector.types.pojo.Schema;
 
 import com.google.flatbuffers.FlatBufferBuilder;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Utility class for serializing Messages. Messages are all serialized a similar way.

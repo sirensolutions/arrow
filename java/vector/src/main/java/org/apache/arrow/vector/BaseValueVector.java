@@ -18,6 +18,7 @@
 
 package org.apache.arrow.vector;
 
+import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.arrow.memory.BufferAllocator;
@@ -29,6 +30,8 @@ import org.apache.arrow.vector.util.TransferPair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import siren.io.netty.buffer.ArrowBuf;
+
 /**
  * Base class for other Arrow Vector Types.  Provides basic functionality around
  * memory management.
@@ -37,7 +40,7 @@ public abstract class BaseValueVector implements ValueVector {
   private static final Logger logger = LoggerFactory.getLogger(BaseValueVector.class);
 
   public static final String MAX_ALLOCATION_SIZE_PROPERTY = "arrow.vector.max_allocation_bytes";
-  public static final long MAX_ALLOCATION_SIZE = Long.getLong(MAX_ALLOCATION_SIZE_PROPERTY, Long.MAX_VALUE);
+  public static final int MAX_ALLOCATION_SIZE = Integer.getInteger(MAX_ALLOCATION_SIZE_PROPERTY, Integer.MAX_VALUE);
   /*
    * For all fixed width vectors, the value and validity buffers are sliced from a single buffer.
    * Similarly, for variable width vectors, the offsets and validity buffers are sliced from a
@@ -48,26 +51,20 @@ public abstract class BaseValueVector implements ValueVector {
   public static final int INITIAL_VALUE_ALLOCATION = 3970;
 
   protected final BufferAllocator allocator;
-  protected final MaterializedField field;
+  protected final String name;
 
-  protected BaseValueVector(BufferAllocator allocator) {
+  protected BaseValueVector(String name, BufferAllocator allocator) {
     this.allocator = Preconditions.checkNotNull(allocator, "allocator cannot be null");
+    this.name = name;
   }
 
   @Override
-  public abstract String getName();
-
-  /**
-   * Representation of vector suitable for debugging.
-   */
-  @Override
   public String toString() {
-    return ValueVectorUtility.getToString(this, 0, getValueCount());
+    return super.toString() + "[name = " + name + ", ...]";
   }
 
   @Override
   public void clear() {
-    getMutator().reset();
   }
 
   @Override
@@ -77,7 +74,7 @@ public abstract class BaseValueVector implements ValueVector {
 
   @Override
   public TransferPair getTransferPair(BufferAllocator allocator) {
-    return getTransferPair(getName(), allocator);
+    return getTransferPair(name, allocator);
   }
 
   @Override
@@ -123,7 +120,7 @@ public abstract class BaseValueVector implements ValueVector {
   }
 
   /* round up bytes for the validity buffer for the given valueCount */
-  private static long roundUp8ForValidityBuffer(long valueCount) {
+  private static long roundUp8ForValidityBuffer(int valueCount) {
     return ((valueCount + 63) >> 6) << 3;
   }
 
@@ -139,7 +136,7 @@ public abstract class BaseValueVector implements ValueVector {
       // for boolean type, value-buffer and validity-buffer are of same size.
       bufferSize *= 2;
     } else {
-      bufferSize += DataSizeRoundingUtil.roundUpTo8Multiple((long) valueCount * typeWidth);
+      bufferSize += DataSizeRoundingUtil.roundUpTo8Multiple(valueCount * typeWidth);
     }
     return CommonUtil.nextPowerOfTwo(bufferSize);
   }
@@ -169,35 +166,34 @@ public abstract class BaseValueVector implements ValueVector {
     long bufferSize = computeCombinedBufferSize(valueCount, typeWidth);
     assert bufferSize <= MAX_ALLOCATION_SIZE;
 
-    long validityBufferSize;
-    long dataBufferSize;
+    int validityBufferSize;
+    int dataBufferSize;
     if (typeWidth == 0) {
-      validityBufferSize = dataBufferSize = bufferSize / 2;
+      validityBufferSize = dataBufferSize = (int) (bufferSize / 2);
     } else {
       // Due to roundup to power-of-2 allocation, the bufferSize could be greater than the
       // requested size. Utilize the allocated buffer fully.;
-      long actualCount = (long) ((bufferSize * 8.0) / (8 * typeWidth + 1));
+      int actualCount = (int) ((bufferSize * 8.0) / (8 * typeWidth + 1));
       do {
-        validityBufferSize = roundUp8ForValidityBuffer(actualCount);
+        validityBufferSize = (int) roundUp8ForValidityBuffer(actualCount);
         dataBufferSize = DataSizeRoundingUtil.roundUpTo8Multiple(actualCount * typeWidth);
         if (validityBufferSize + dataBufferSize <= bufferSize) {
           break;
         }
         --actualCount;
-      }
-      while (true);
+      } while (true);
     }
 
 
     /* allocate combined buffer */
-    ArrowBuf combinedBuffer = allocator.buffer(bufferSize);
+    ArrowBuf combinedBuffer = allocator.buffer((int) bufferSize);
 
     /* slice into requested lengths */
     ArrowBuf dataBuf = null;
     ArrowBuf validityBuf = null;
-    long bufferOffset = 0;
+    int bufferOffset = 0;
     for (int numBuffers = 0; numBuffers < 2; ++numBuffers) {
-      long len = (numBuffers == 0 ? dataBufferSize : validityBufferSize);
+      int len = (numBuffers == 0 ? dataBufferSize : validityBufferSize);
       ArrowBuf buf = combinedBuffer.slice(bufferOffset, len);
       buf.getReferenceManager().retain();
       buf.readerIndex(0);
@@ -217,16 +213,6 @@ public abstract class BaseValueVector implements ValueVector {
   public static ArrowBuf transferBuffer(final ArrowBuf srcBuffer, final BufferAllocator targetAllocator) {
     final ReferenceManager referenceManager = srcBuffer.getReferenceManager();
     return referenceManager.transferOwnership(srcBuffer, targetAllocator).getTransferredBuffer();
-  }
-
-  @Override
-  public void copyFrom(int fromIndex, int thisIndex, ValueVector from) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public void copyFromSafe(int fromIndex, int thisIndex, ValueVector from) {
-    throw new UnsupportedOperationException();
   }
 }
 

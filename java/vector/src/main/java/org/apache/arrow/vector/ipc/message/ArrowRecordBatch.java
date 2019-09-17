@@ -17,13 +17,13 @@
 
 package org.apache.arrow.vector.ipc.message;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.flatbuf.RecordBatch;
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.compression.NoCompressionCodec;
@@ -33,8 +33,10 @@ import org.slf4j.LoggerFactory;
 
 import com.google.flatbuffers.FlatBufferBuilder;
 
+import siren.io.netty.buffer.ArrowBuf;
+
 /**
- * POJO representation of a RecordBatch IPC message (https://arrow.apache.org/docs/format/IPC.html).
+ * POJO representation of an RecordBatch IPC message (https://arrow.apache.org/docs/format/IPC.html).
  */
 public class ArrowRecordBatch implements ArrowMessage {
 
@@ -92,9 +94,7 @@ public class ArrowRecordBatch implements ArrowMessage {
       arrowBuf.getReferenceManager().retain();
       long size = arrowBuf.readableBytes();
       arrowBuffers.add(new ArrowBuffer(offset, size));
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Buffer in RecordBatch at {}, length: {}", offset, size);
-      }
+      LOGGER.debug("Buffer in RecordBatch at {}, length: {}", offset, size);
       offset += size;
       if (alignBuffers) { // align on 8 byte boundaries
         offset = DataSizeRoundingUtil.roundUpTo8Multiple(offset);
@@ -124,10 +124,6 @@ public class ArrowRecordBatch implements ArrowMessage {
       offset += size;
     }
     this.buffersLayout = Collections.unmodifiableList(arrowBuffers);
-  }
-
-  public byte getMessageType() {
-    return org.apache.arrow.flatbuf.MessageHeader.RecordBatch;
   }
 
   public int getLength() {
@@ -235,8 +231,8 @@ public class ArrowRecordBatch implements ArrowMessage {
    * Computes the size of the serialized body for this recordBatch.
    */
   @Override
-  public long computeBodyLength() {
-    long size = 0;
+  public int computeBodyLength() {
+    int size = 0;
 
     List<ArrowBuf> buffers = getBuffers();
     List<ArrowBuffer> buffersLayout = getBuffersLayout();
@@ -248,7 +244,10 @@ public class ArrowRecordBatch implements ArrowMessage {
     for (int i = 0; i < buffers.size(); i++) {
       ArrowBuf buffer = buffers.get(i);
       ArrowBuffer layout = buffersLayout.get(i);
-      size = layout.getOffset() + buffer.readableBytes();
+      size += (layout.getOffset() - size);
+      ByteBuffer nioBuffer =
+          buffer.nioBuffer(buffer.readerIndex(), buffer.readableBytes());
+      size += nioBuffer.remaining();
 
       // round up size to the next multiple of 8
       size = DataSizeRoundingUtil.roundUpTo8Multiple(size);

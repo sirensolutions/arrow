@@ -19,24 +19,23 @@ package org.apache.arrow.vector;
 
 import static org.apache.arrow.vector.NullCheckingForGet.NULL_CHECKING_ENABLED;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.complex.impl.DateDayReaderImpl;
 import org.apache.arrow.vector.complex.reader.FieldReader;
 import org.apache.arrow.vector.holders.DateDayHolder;
 import org.apache.arrow.vector.holders.NullableDateDayHolder;
 import org.apache.arrow.vector.types.Types.MinorType;
-import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.TransferPair;
+
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * DateDayVector implements a fixed width (4 bytes) vector of
  * date values which could be null. A validity buffer (bit vector) is
  * maintained to track which elements in the vector are null.
  */
-public final class DateDayVector extends BaseFixedWidthVector {
-
+public class DateDayVector extends BaseFixedWidthVector {
   private static final byte TYPE_WIDTH = 4;
   private final FieldReader reader;
 
@@ -60,18 +59,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
    * @param allocator allocator for memory management.
    */
   public DateDayVector(String name, FieldType fieldType, BufferAllocator allocator) {
-    this(new Field(name, fieldType, null), allocator);
-  }
-
-  /**
-   * Instantiate a DateDayVector. This doesn't allocate any memory for
-   * the data in vector.
-   *
-   * @param field Field materialized by this vector
-   * @param allocator allocator for memory management.
-   */
-  public DateDayVector(Field field, BufferAllocator allocator) {
-    super(field, allocator, TYPE_WIDTH);
+    super(name, allocator, fieldType, TYPE_WIDTH);
     reader = new DateDayReaderImpl(DateDayVector.this);
   }
 
@@ -113,7 +101,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
     if (NULL_CHECKING_ENABLED && isSet(index) == 0) {
       throw new IllegalStateException("Value at index is null");
     }
-    return valueBuffer.getInt((long) index * TYPE_WIDTH);
+    return valueBuffer.getInt(index * TYPE_WIDTH);
   }
 
   /**
@@ -129,7 +117,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
       return;
     }
     holder.isSet = 1;
-    holder.value = valueBuffer.getInt((long) index * TYPE_WIDTH);
+    holder.value = valueBuffer.getInt(index * TYPE_WIDTH);
   }
 
   /**
@@ -142,9 +130,38 @@ public final class DateDayVector extends BaseFixedWidthVector {
     if (isSet(index) == 0) {
       return null;
     } else {
-      return valueBuffer.getInt((long) index * TYPE_WIDTH);
+      return valueBuffer.getInt(index * TYPE_WIDTH);
     }
   }
+
+  /**
+   * Copy a cell value from a particular index in source vector to a particular
+   * position in this vector.
+   *
+   * @param fromIndex position to copy from in source vector
+   * @param thisIndex position to copy to in this vector
+   * @param from source vector
+   */
+  public void copyFrom(int fromIndex, int thisIndex, DateDayVector from) {
+    BitVectorHelper.setValidityBit(validityBuffer, thisIndex, from.isSet(fromIndex));
+    final int value = from.valueBuffer.getInt(fromIndex * TYPE_WIDTH);
+    valueBuffer.setInt(thisIndex * TYPE_WIDTH, value);
+  }
+
+  /**
+   * Same as {@link #copyFrom(int, int, DateDayVector)} except that
+   * it handles the case when the capacity of the vector needs to be expanded
+   * before copy.
+   *
+   * @param fromIndex position to copy from in source vector
+   * @param thisIndex position to copy to in this vector
+   * @param from source vector
+   */
+  public void copyFromSafe(int fromIndex, int thisIndex, DateDayVector from) {
+    handleSafe(thisIndex);
+    copyFrom(fromIndex, thisIndex, from);
+  }
+
 
   /*----------------------------------------------------------------*
    |                                                                |
@@ -154,7 +171,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
 
 
   private void setValue(int index, int value) {
-    valueBuffer.setInt((long) index * TYPE_WIDTH, value);
+    valueBuffer.setInt(index * TYPE_WIDTH, value);
   }
 
   /**
@@ -164,7 +181,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
    * @param value   value of element
    */
   public void set(int index, int value) {
-    BitVectorHelper.setBit(validityBuffer, index);
+    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
     setValue(index, value);
   }
 
@@ -180,10 +197,10 @@ public final class DateDayVector extends BaseFixedWidthVector {
     if (holder.isSet < 0) {
       throw new IllegalArgumentException();
     } else if (holder.isSet > 0) {
-      BitVectorHelper.setBit(validityBuffer, index);
+      BitVectorHelper.setValidityBitToOne(validityBuffer, index);
       setValue(index, holder.value);
     } else {
-      BitVectorHelper.unsetBit(validityBuffer, index);
+      BitVectorHelper.setValidityBit(validityBuffer, index, 0);
     }
   }
 
@@ -194,7 +211,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
    * @param holder  data holder for value of element
    */
   public void set(int index, DateDayHolder holder) {
-    BitVectorHelper.setBit(validityBuffer, index);
+    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
     setValue(index, holder.value);
   }
 
@@ -238,6 +255,18 @@ public final class DateDayVector extends BaseFixedWidthVector {
   }
 
   /**
+   * Set the element at the given index to null.
+   *
+   * @param index   position of element
+   */
+  public void setNull(int index) {
+    handleSafe(index);
+    // not really needed to set the bit to 0 as long as
+    // the buffer always starts from 0.
+    BitVectorHelper.setValidityBit(validityBuffer, index, 0);
+  }
+
+  /**
    * Store the given value at a particular position in the vector. isSet indicates
    * whether the value is NULL or not.
    *
@@ -249,7 +278,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
     if (isSet > 0) {
       set(index, value);
     } else {
-      BitVectorHelper.unsetBit(validityBuffer, index);
+      BitVectorHelper.setValidityBit(validityBuffer, index, 0);
     }
   }
 
@@ -278,7 +307,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
    * @return value stored at the index.
    */
   public static int get(final ArrowBuf buffer, final int index) {
-    return buffer.getInt((long) index * TYPE_WIDTH);
+    return buffer.getInt(index * TYPE_WIDTH);
   }
 
 
@@ -290,7 +319,7 @@ public final class DateDayVector extends BaseFixedWidthVector {
 
 
   /**
-   * Construct a TransferPair comprising of this and a target vector of
+   * Construct a TransferPair comprising of this and and a target vector of
    * the same type.
    *
    * @param ref name of the target vector
