@@ -36,7 +36,7 @@ To build the `memory` and `vector` modules:
 
 ```sh
 $ cd java
-$ mvn clean package -pl format,memory,vector
+$ mvn clean package
 ```
 
 Because of the default value change of `unsafe_memory_access` property, some
@@ -50,7 +50,7 @@ mvn package -Dsiren.arrow.enable_unsafe_memory_access=false -pl vector
 ## Deploy to Siren's artifactory
 
 ```sh
-$ mvn deploy -DskipTests=true -pl format,memory,vector -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
+$ mvn deploy -DskipTests=true -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
 ```
 
 ## Update to a new version of Apache Arrow
