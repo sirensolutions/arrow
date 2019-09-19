@@ -17,7 +17,6 @@
     <version>4.0.0</version>
   </parent>
   <artifactId>arrow-memory</artifactId>
-  <version>siren-0.7.1</version>
   <name>Arrow Memory</name>
   <packaging>pom</packaging>
   <properties>
