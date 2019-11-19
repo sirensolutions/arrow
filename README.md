@@ -20,7 +20,7 @@
 # Siren fork of Arrow
 
 - The properties `drill.enable_unsafe_memory_access` and
-  `siren.arrow.enable_unsafe_memory_access` are prefixed with `siren` and their
+  `arrow.enable_unsafe_memory_access` are prefixed with `siren` and their
   default value is set to `true`. The first property is deprecated.
 
 - In order to avoid conflict with a version of `netty` used in Elasticsearch, we
@@ -32,7 +32,7 @@
 
 ## Build
 
-To build the `memory` and `vector` modules:
+To build the `memory`, `format` and `vector` modules:
 
 ```sh
 $ cd java
@@ -40,11 +40,11 @@ $ mvn clean package
 ```
 
 Because of the default value change of `unsafe_memory_access` property, some
-tests in `vector` fail. To make the build pass for those and run only `vector`
-tests:
+tests in `vector` fail.
 
 ```sh
-mvn package -Dsiren.arrow.enable_unsafe_memory_access=false -pl vector
+mvn -pl format,vector package -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
+mvn -pl memory package
 ```
 
 ## Deploy to Siren's artifactory
