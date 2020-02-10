@@ -717,10 +717,16 @@ public abstract class BaseVariableWidthVector extends BaseValueVector
     final int start = offsetBuffer.getInt(startIndex * OFFSET_WIDTH);
     final int end = offsetBuffer.getInt((startIndex + length) * OFFSET_WIDTH);
     final int dataLength = end - start;
-    target.allocateOffsetBuffer((length + 1) * OFFSET_WIDTH);
-    for (int i = 0; i < length + 1; i++) {
-      final int relativeSourceOffset = offsetBuffer.getInt((startIndex + i) * OFFSET_WIDTH) - start;
-      target.offsetBuffer.setInt(i * OFFSET_WIDTH, relativeSourceOffset);
+
+    if (startIndex == 0) {
+      target.offsetBuffer = offsetBuffer.slice();
+      target.offsetBuffer.getReferenceManager().retain();
+    } else {
+      target.allocateOffsetBuffer((length + 1) * OFFSET_WIDTH);
+      for (int i = 0; i < length + 1; i++) {
+        final int relativeSourceOffset = offsetBuffer.getInt((startIndex + i) * OFFSET_WIDTH) - start;
+        target.offsetBuffer.setInt(i * OFFSET_WIDTH, relativeSourceOffset);
+      }
     }
     final ArrowBuf slicedBuffer = valueBuffer.slice(start, dataLength);
     target.valueBuffer = transferBuffer(slicedBuffer, target.allocator);
