@@ -15,7 +15,7 @@
 <parent>
   <artifactId>arrow-java-root</artifactId>
   <groupId>org.apache.arrow</groupId>
-  <version>siren-0.14.1-2</version>
+  <version>siren-0.14.1-3</version>
 </parent>
 
 <artifactId>arrow-format</artifactId>
