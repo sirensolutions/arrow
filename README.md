@@ -47,7 +47,23 @@ mvn -pl format,vector package -Dsiren.arrow.enable_unsafe_memory_access=false -D
 mvn -pl memory package
 ```
 
-## Deploy to Siren's artifactory
+## Make a new release
+
+- Tests should pass.
+
+- Make a new version:
+
+```sh
+mvn versions:set -DnewVersion=siren-0.14.1-2
+```
+
+- tag the commit for the release
+
+```sh
+git tag --sign siren-0.14.1-2
+````
+
+- Deploy to Siren's artifactory
 
 ```sh
 $ mvn deploy -DskipTests=true -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
