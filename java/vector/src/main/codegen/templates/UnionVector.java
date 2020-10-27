@@ -25,7 +25,7 @@ package org.apache.arrow.vector.complex;
 
 <#include "/@includes/vv_imports.ftl" />
 import com.google.common.collect.ImmutableList;
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;

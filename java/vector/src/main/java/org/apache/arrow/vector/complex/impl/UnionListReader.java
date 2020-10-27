@@ -19,7 +19,7 @@
 
 package org.apache.arrow.vector.complex.impl;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.reader.FieldReader;

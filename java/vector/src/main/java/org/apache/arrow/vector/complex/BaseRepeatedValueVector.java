@@ -38,7 +38,7 @@ import org.apache.arrow.vector.util.SchemaChangeRuntimeException;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ObjectArrays;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 public abstract class BaseRepeatedValueVector extends BaseValueVector implements RepeatedValueVector {
 

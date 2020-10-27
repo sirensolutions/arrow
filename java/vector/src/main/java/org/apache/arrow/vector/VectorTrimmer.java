@@ -18,8 +18,8 @@
 
 package org.apache.arrow.vector;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ByteBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 public class VectorTrimmer {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(VectorTrimmer.class);

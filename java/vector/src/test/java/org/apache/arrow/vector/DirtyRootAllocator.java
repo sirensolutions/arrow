@@ -21,7 +21,7 @@ package org.apache.arrow.vector;
 import org.apache.arrow.memory.BufferManager;
 import org.apache.arrow.memory.RootAllocator;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Root allocator that returns buffers pre-filled with a given value.<br>

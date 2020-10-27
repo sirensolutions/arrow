@@ -23,7 +23,7 @@ import java.util.List;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.pojo.Field;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * A vector corresponding to a Field in the schema

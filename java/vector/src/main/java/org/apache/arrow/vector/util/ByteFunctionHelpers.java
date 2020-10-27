@@ -19,7 +19,7 @@
 
 package org.apache.arrow.vector.util;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 import io.netty.util.internal.PlatformDependent;
 
 import org.apache.arrow.memory.BoundsChecking;

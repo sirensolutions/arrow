@@ -24,7 +24,7 @@ import java.nio.channels.WritableByteChannel;
 
 import com.google.flatbuffers.FlatBufferBuilder;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 import org.apache.arrow.vector.ipc.message.FBSerializable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

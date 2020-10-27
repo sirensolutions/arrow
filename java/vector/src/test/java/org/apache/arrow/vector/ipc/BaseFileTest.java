@@ -68,7 +68,7 @@ import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 import static org.apache.arrow.vector.TestUtils.newVarCharVector;
 

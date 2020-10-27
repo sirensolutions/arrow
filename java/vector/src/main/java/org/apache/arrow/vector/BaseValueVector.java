@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 public abstract class BaseValueVector implements ValueVector {
   private static final Logger logger = LoggerFactory.getLogger(BaseValueVector.class);

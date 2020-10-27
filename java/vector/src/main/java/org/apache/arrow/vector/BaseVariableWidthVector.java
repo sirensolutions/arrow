@@ -19,7 +19,7 @@
 package org.apache.arrow.vector;
 
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.memory.BaseAllocator;
@@ -585,7 +585,7 @@ public abstract class BaseVariableWidthVector extends BaseValueVector
    *
    * @param clear Whether to clear vector before returning; the buffers will still be refcounted
    *              but the returned array will be the only reference to them
-   * @return The underlying {@link io.netty.buffer.ArrowBuf buffers} that is used by this
+   * @return The underlying {@link siren.io.netty.buffer.ArrowBuf buffers} that is used by this
    *         vector instance.
    */
   @Override
