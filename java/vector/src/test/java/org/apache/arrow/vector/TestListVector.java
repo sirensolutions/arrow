@@ -39,7 +39,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 
 public class TestListVector {

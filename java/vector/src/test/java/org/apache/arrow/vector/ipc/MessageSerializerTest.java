@@ -30,7 +30,7 @@ import java.nio.channels.Channels;
 import java.util.Collections;
 import java.util.List;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;

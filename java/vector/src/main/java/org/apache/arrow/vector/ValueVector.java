@@ -28,7 +28,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.TransferPair;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * An abstraction that is used to store a sequence of values in an individual column.
@@ -166,7 +166,7 @@ public interface ValueVector extends Closeable, Iterable<ValueVector> {
    *
    * @param clear Whether to clear vector before returning; the buffers will still be refcounted;
    *              but the returned array will be the only reference to them
-   * @return The underlying {@link io.netty.buffer.ArrowBuf buffers} that is used by this vector instance.
+   * @return The underlying {@link siren.io.netty.buffer.ArrowBuf buffers} that is used by this vector instance.
    */
   ArrowBuf[] getBuffers(boolean clear);
 

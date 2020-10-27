@@ -19,7 +19,7 @@
 package org.apache.arrow.vector.ipc.message;
 
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 import org.apache.arrow.flatbuf.Message;
 import org.apache.arrow.memory.BufferAllocator;
 

@@ -32,7 +32,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Ints;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.*;

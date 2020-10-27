@@ -30,7 +30,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 
 import com.google.common.collect.Iterators;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Loads buffers into vectors

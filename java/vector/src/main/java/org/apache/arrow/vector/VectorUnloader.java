@@ -21,7 +21,7 @@ package org.apache.arrow.vector;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.netty.buffer.ArrowBuf;
+import siren.io.netty.buffer.ArrowBuf;
 import org.apache.arrow.vector.BufferLayout.BufferType;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;

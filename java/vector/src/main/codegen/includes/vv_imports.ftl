@@ -20,7 +20,7 @@ import com.google.common.collect.ObjectArrays;
 import com.google.flatbuffers.FlatBufferBuilder;
 
 import com.google.common.base.Preconditions;
-import io.netty.buffer.*;
+import siren.io.netty.buffer.*;
 
 import org.apache.arrow.memory.*;
 import org.apache.arrow.vector.types.Types;
