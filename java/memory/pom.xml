@@ -20,7 +20,7 @@
   <name>Arrow Memory</name>
 
   <properties>
-    <netty.version>siren-4.1.17.Final</netty.version>
+    <netty.version>siren-4.1.27-3</netty.version>
   </properties>
 
   <dependencies>
