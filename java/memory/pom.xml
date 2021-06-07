@@ -14,15 +14,11 @@
   <parent>
     <groupId>org.apache.arrow</groupId>
     <artifactId>arrow-java-root</artifactId>
-    <version>4.0.0</version>
+    <version>siren-4.0.0-1-SNAPSHOT</version>
   </parent>
   <artifactId>arrow-memory</artifactId>
-  <version>siren-0.8.0</version>
   <name>Arrow Memory</name>
   <packaging>pom</packaging>
-  <properties>
-    <netty.version>siren-4.1.17.Final</netty.version>
-  </properties>
 
   <modules>
     <module>memory-core</module>
