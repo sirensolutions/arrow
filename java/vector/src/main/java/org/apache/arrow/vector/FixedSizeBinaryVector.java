@@ -26,6 +26,7 @@ import org.apache.arrow.vector.holders.FixedSizeBinaryHolder;
 import org.apache.arrow.vector.holders.NullableFixedSizeBinaryHolder;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeBinary;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.TransferPair;
 
@@ -356,7 +357,7 @@ public class FixedSizeBinaryVector extends BaseFixedWidthVector {
 
 
   /**
-   * Construct a TransferPair comprising of this and and a target vector of
+   * Construct a TransferPair comprising of this and a target vector of
    * the same type.
    *
    * @param ref       name of the target vector

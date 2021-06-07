@@ -123,6 +123,7 @@
             <exclude>**/*.proto</exclude>
             <exclude>**/*.fmpp</exclude>
             <exclude>**/target/**</exclude>
+            <exclude>**/*.iml</exclude>
             <exclude>**/*.tdd</exclude>
             <exclude>**/*.project</exclude>
             <exclude>**/TAGS</exclude>
@@ -136,7 +137,6 @@
             <exclude>**/*.linux</exclude>
             <exclude>**/client/build/**</exclude>
             <exclude>**/*.tbl</exclude>
-            <exclude>**/*.iml</exclude>
           </excludes>
         </configuration>
       </plugin>
@@ -612,6 +612,13 @@
       <artifactId>mockito-junit-jupiter</artifactId>
       <version>2.25.1</version>
       <scope>test</scope>
+      <!-- Mockito  contains old Hamcrest classes, causes issues with JUNIT -->
+      <exclusions>
+        <exclusion>
+          <groupId>org.hamcrest</groupId>
+          <artifactId>hamcrest-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
