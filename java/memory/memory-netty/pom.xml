@@ -23,6 +23,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-memory-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-buffer</artifactId>
     </dependency>
@@ -45,54 +50,46 @@
   <build>
     <plugins>
       <plugin>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.0.0-M3</version>
-        <configuration>
-          <enableAssertions>true</enableAssertions>
-          <childDelegation>true</childDelegation>
-          <forkCount>${forkCount}</forkCount>
-          <reuseForks>true</reuseForks>
-          <systemPropertyVariables>
-            <java.io.tmpdir>${project.build.directory}</java.io.tmpdir>
-            <io.netty.tryReflectionSetAccessible>true</io.netty.tryReflectionSetAccessible>
-            <arrow.vector.max_allocation_bytes>1048576</arrow.vector.max_allocation_bytes>
-            <user.timezone>UTC</user.timezone>
-          </systemPropertyVariables>
-        </configuration>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <shadedArtifactAttached>false</shadedArtifactAttached>
+              <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
+              <relocations>
+                <relocation>
+                  <pattern>io.netty</pattern>
+                  <shadedPattern>siren.io.netty</shadedPattern>
+                </relocation>
+              </relocations>
+              <artifactSet>
+                <excludes>
+                  <exclude>org.slf4j</exclude>
+                  <exclude>com.google.code.findbugs</exclude>
+                  <exclude>com.google.guava</exclude>
+                </excludes>
+              </artifactSet>
+              <!--to prevent the Invalid signature file error -->
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
-
-  <profiles>
-    <profile>
-      <!-- This profile turns on integration testing. It activates the failsafe plugin and will run any tests
-      with the 'IT' prefix. This should be run in a separate CI build or on developers machines as it potentially
-      uses quite a bit of memory. Activate the tests by adding -Pintegration-tests to your maven command line -->
-      <id>integration-tests</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-failsafe-plugin</artifactId>
-            <configuration>
-              <systemPropertyVariables>
-                <java.io.tmpdir>${project.build.directory}</java.io.tmpdir>
-                <io.netty.tryReflectionSetAccessible>true</io.netty.tryReflectionSetAccessible>
-                <user.timezone>UTC</user.timezone>
-              </systemPropertyVariables>
-              <argLine />
-            </configuration>
-            <executions>
-              <execution>
-                <goals>
-                  <goal>integration-test</goal>
-                  <goal>verify</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-  </profiles>
 </project>
