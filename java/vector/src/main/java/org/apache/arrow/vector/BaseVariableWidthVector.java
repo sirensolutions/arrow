@@ -175,7 +175,7 @@ public abstract class BaseVariableWidthVector extends BaseValueVector
    */
   @Override
   public void setInitialCapacity(int valueCount, double density) {
-    long size = Math.max((long)(valueCount * density), 1L);
+    long size = Math.max((long) (valueCount * density), 1L);
     checkDataBufferSize(size);
     computeAndCheckOffsetsBufferSize(valueCount);
     lastValueAllocationSizeInBytes = (int) size;
@@ -524,7 +524,7 @@ public abstract class BaseVariableWidthVector extends BaseValueVector
    * @throws OutOfMemoryException if the internal memory allocation fails
    */
   public void reallocValidityAndOffsetBuffers() {
-    int targetOffsetCount = (offsetBuffer.capacity() / OFFSET_WIDTH)  * 2;
+    int targetOffsetCount = (offsetBuffer.capacity() / OFFSET_WIDTH) * 2;
     if (targetOffsetCount == 0) {
       if (lastValueCapacity > 0) {
         targetOffsetCount = (lastValueCapacity + 1);

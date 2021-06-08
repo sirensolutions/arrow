@@ -175,10 +175,10 @@ public abstract class BaseRepeatedValueVector extends BaseValueVector implements
 
     offsetAllocationSizeInBytes = (numRecords + 1) * OFFSET_WIDTH;
 
-    int innerValueCapacity = Math.max((int)(numRecords * density), 1);
+    int innerValueCapacity = Math.max((int) (numRecords * density), 1);
 
     if (vector instanceof DensityAwareVector) {
-      ((DensityAwareVector)vector).setInitialCapacity(innerValueCapacity, density);
+      ((DensityAwareVector) vector).setInitialCapacity(innerValueCapacity, density);
     } else {
       vector.setInitialCapacity(innerValueCapacity);
     }

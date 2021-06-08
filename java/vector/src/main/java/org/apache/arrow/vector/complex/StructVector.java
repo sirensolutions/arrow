@@ -62,7 +62,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
   private int validityAllocationSizeInBytes;
 
   /**
-   * @deprecated Use FieldType or static constructor instead.
+   * This is  @deprecated Use FieldType or static constructor instead.
    */
   @Deprecated
   public StructVector(String name, BufferAllocator allocator, CallBack callBack) {
@@ -70,7 +70,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
   }
 
   /**
-   * @deprecated Use FieldType or static constructor instead.
+   * This is @deprecated Use FieldType or static constructor instead.
    */
   @Deprecated
   public StructVector(String name, BufferAllocator allocator, DictionaryEncoding dictionary, CallBack callBack) {

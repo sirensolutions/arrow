@@ -58,7 +58,8 @@ public class NonNullableStructVector extends AbstractStructVector {
   public int valueCount;
 
   /**
-   * @deprecated Use FieldType or static constructor instead.
+   * This is @deprecated
+   * Use FieldType or static constructor instead.
    */
   @Deprecated
   public NonNullableStructVector(String name, BufferAllocator allocator, CallBack callBack) {
@@ -117,7 +118,7 @@ public class NonNullableStructVector extends AbstractStructVector {
   public void setInitialCapacity(int valueCount, double density) {
     for (final ValueVector vector : (Iterable<ValueVector>) this) {
       if (vector instanceof DensityAwareVector) {
-        ((DensityAwareVector)vector).setInitialCapacity(valueCount, density);
+        ((DensityAwareVector) vector).setInitialCapacity(valueCount, density);
       } else {
         vector.setInitialCapacity(valueCount);
       }

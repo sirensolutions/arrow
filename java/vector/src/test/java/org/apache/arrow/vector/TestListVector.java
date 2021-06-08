@@ -512,9 +512,9 @@ public class TestListVector {
       ArrayList<ArrayList<Long>> resultSet = (ArrayList<ArrayList<Long>>) result;
       ArrayList<Long> list;
 
-      assertEquals(2, resultSet.size());              /* 2 inner lists at index 0 */
-      assertEquals(3, resultSet.get(0).size());       /* size of first inner list */
-      assertEquals(4, resultSet.get(1).size());       /* size of second inner list */
+      assertEquals(2, resultSet.size()); /* 2 inner lists at index 0 */
+      assertEquals(3, resultSet.get(0).size()); /* size of first inner list */
+      assertEquals(4, resultSet.get(1).size()); /* size of second inner list */
 
       list = resultSet.get(0);
       assertEquals(new Long(50), list.get(0));
@@ -531,10 +531,10 @@ public class TestListVector {
       result = listVector.getObject(1);
       resultSet = (ArrayList<ArrayList<Long>>) result;
 
-      assertEquals(3, resultSet.size());              /* 3 inner lists at index 1 */
-      assertEquals(1, resultSet.get(0).size());       /* size of first inner list */
-      assertEquals(2, resultSet.get(1).size());       /* size of second inner list */
-      assertEquals(3, resultSet.get(2).size());       /* size of third inner list */
+      assertEquals(3, resultSet.size()); /* 3 inner lists at index 1 */
+      assertEquals(1, resultSet.get(0).size()); /* size of first inner list */
+      assertEquals(2, resultSet.get(1).size()); /* size of second inner list */
+      assertEquals(3, resultSet.get(2).size()); /* size of third inner list */
 
       list = resultSet.get(0);
       assertEquals(new Long(10), list.get(0));
@@ -571,22 +571,22 @@ public class TestListVector {
 
       listVector.addOrGetVector(FieldType.nullable(listType.getType()));
 
-      ListVector innerList1 = (ListVector)listVector.getDataVector();
+      ListVector innerList1 = (ListVector) listVector.getDataVector();
       innerList1.addOrGetVector(FieldType.nullable(listType.getType()));
 
-      ListVector innerList2 = (ListVector)innerList1.getDataVector();
+      ListVector innerList2 = (ListVector) innerList1.getDataVector();
       innerList2.addOrGetVector(FieldType.nullable(listType.getType()));
 
-      ListVector innerList3 = (ListVector)innerList2.getDataVector();
+      ListVector innerList3 = (ListVector) innerList2.getDataVector();
       innerList3.addOrGetVector(FieldType.nullable(listType.getType()));
 
-      ListVector innerList4 = (ListVector)innerList3.getDataVector();
+      ListVector innerList4 = (ListVector) innerList3.getDataVector();
       innerList4.addOrGetVector(FieldType.nullable(listType.getType()));
 
-      ListVector innerList5 = (ListVector)innerList4.getDataVector();
+      ListVector innerList5 = (ListVector) innerList4.getDataVector();
       innerList5.addOrGetVector(FieldType.nullable(listType.getType()));
 
-      ListVector innerList6 = (ListVector)innerList5.getDataVector();
+      ListVector innerList6 = (ListVector) innerList5.getDataVector();
       innerList6.addOrGetVector(FieldType.nullable(scalarType.getType()));
 
       listVector.setInitialCapacity(128);
@@ -646,9 +646,9 @@ public class TestListVector {
       ArrayList<ArrayList<Long>> resultSet = (ArrayList<ArrayList<Long>>) result;
       ArrayList<Long> list;
 
-      assertEquals(2, resultSet.size());              /* 2 inner lists at index 0 */
-      assertEquals(3, resultSet.get(0).size());       /* size of first inner list */
-      assertEquals(2, resultSet.get(1).size());       /* size of second inner list */
+      assertEquals(2, resultSet.size()); /* 2 inner lists at index 0 */
+      assertEquals(3, resultSet.get(0).size()); /* size of first inner list */
+      assertEquals(2, resultSet.get(1).size()); /* size of second inner list */
 
       list = resultSet.get(0);
       assertEquals(new Long(50), list.get(0));
@@ -663,9 +663,9 @@ public class TestListVector {
       result = listVector.getObject(1);
       resultSet = (ArrayList<ArrayList<Long>>) result;
 
-      assertEquals(2, resultSet.size());              /* 3 inner lists at index 1 */
-      assertEquals(2, resultSet.get(0).size());       /* size of first inner list */
-      assertEquals(3, resultSet.get(1).size());       /* size of second inner list */
+      assertEquals(2, resultSet.size()); /* 3 inner lists at index 1 */
+      assertEquals(2, resultSet.get(0).size()); /* size of first inner list */
+      assertEquals(3, resultSet.get(1).size()); /* size of second inner list */
 
       list = resultSet.get(0);
       assertEquals(new Long(15), list.get(0));

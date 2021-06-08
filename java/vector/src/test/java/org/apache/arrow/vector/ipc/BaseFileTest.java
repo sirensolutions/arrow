@@ -132,11 +132,11 @@ public class BaseFileTest {
       uint1Writer.setPosition(i);
       // TODO: Fix add safe write methods on uint methods.
       uint1Writer.setPosition(i);
-      uint1Writer.writeUInt1((byte)uint1Values[i % uint1Values.length] );
+      uint1Writer.writeUInt1((byte) uint1Values[i % uint1Values.length] );
       uint2Writer.setPosition(i);
-      uint2Writer.writeUInt2((char)uint2Values[i % uint2Values.length] );
+      uint2Writer.writeUInt2((char) uint2Values[i % uint2Values.length] );
       uint4Writer.setPosition(i);
-      uint4Writer.writeUInt4((int)uint4Values[i % uint4Values.length] );
+      uint4Writer.writeUInt4((int) uint4Values[i % uint4Values.length] );
       uint8Writer.setPosition(i);
       uint8Writer.writeUInt8(uint8Values[i % uint8Values.length].longValue());
       bigIntWriter.setPosition(i);
@@ -151,14 +151,14 @@ public class BaseFileTest {
   protected void validateContent(int count, VectorSchemaRoot root) {
     for (int i = 0; i < count; i++) {
       Assert.assertEquals(i, root.getVector("int").getObject(i));
-      Assert.assertEquals((Short)uint1Values[i % uint1Values.length],
-          ((UInt1Vector)root.getVector("uint1")).getObjectNoOverflow(i));
-      Assert.assertEquals("Failed for index: " + i, (Character)uint2Values[i % uint2Values.length],
-          (Character)((UInt2Vector)root.getVector("uint2")).get(i));
-      Assert.assertEquals("Failed for index: " + i, (Long)uint4Values[i % uint4Values.length],
-          ((UInt4Vector)root.getVector("uint4")).getObjectNoOverflow(i));
+      Assert.assertEquals((Short) uint1Values[i % uint1Values.length],
+          ((UInt1Vector) root.getVector("uint1")).getObjectNoOverflow(i));
+      Assert.assertEquals("Failed for index: " + i, (Character) uint2Values[i % uint2Values.length],
+          (Character) ((UInt2Vector) root.getVector("uint2")).get(i));
+      Assert.assertEquals("Failed for index: " + i, (Long) uint4Values[i % uint4Values.length],
+          ((UInt4Vector) root.getVector("uint4")).getObjectNoOverflow(i));
       Assert.assertEquals("Failed for index: " + i, uint8Values[i % uint8Values.length],
-          ((UInt8Vector)root.getVector("uint8")).getObjectNoOverflow(i));
+          ((UInt8Vector) root.getVector("uint8")).getObjectNoOverflow(i));
       Assert.assertEquals(Long.valueOf(i), root.getVector("bigInt").getObject(i));
       Assert.assertEquals(i == 0 ? Float.NaN : i, root.getVector("float").getObject(i));
     }
@@ -261,7 +261,7 @@ public class BaseFileTest {
       timeStampMilliTZWriter.writeTimeStampMilliTZ(dt.atZone(ZoneId.of("Europe/Paris")).toInstant().toEpochMilli());
       // Timestamp as nanoseconds since epoch
       timeStampNanoWriter.setPosition(i);
-      long tsNanos = dt.toInstant(ZoneOffset.UTC).toEpochMilli() * 1_000_000 + i;  // need to add back in nano val
+      long tsNanos = dt.toInstant(ZoneOffset.UTC).toEpochMilli() * 1_000_000 + i; // need to add back in nano val
       timeStampNanoWriter.writeTimeStampNano(tsNanos);
     }
     writer.setValueCount(count);
@@ -323,16 +323,16 @@ public class BaseFileTest {
     vector1A.setValueCount(6);
 
     FieldVector encodedVector1A = (FieldVector) DictionaryEncoder.encode(vector1A, dictionary1);
-    vector1A.close();  // Done with this vector after encoding
+    vector1A.close(); // Done with this vector after encoding
 
     // Write this vector using indices instead of encoding
     IntVector encodedVector1B = new IntVector("varcharB", bufferAllocator);
     encodedVector1B.allocateNewSafe();
-    encodedVector1B.set(0, 2);  // "baz"
-    encodedVector1B.set(1, 1);  // "bar"
-    encodedVector1B.set(2, 2);  // "baz"
-    encodedVector1B.set(4, 1);  // "bar"
-    encodedVector1B.set(5, 0);  // "foo"
+    encodedVector1B.set(0, 2); // "baz"
+    encodedVector1B.set(1, 1); // "bar"
+    encodedVector1B.set(2, 2); // "baz"
+    encodedVector1B.set(4, 1); // "bar"
+    encodedVector1B.set(5, 0); // "foo"
     encodedVector1B.setValueCount(6);
 
     VarCharVector vector2 = newVarCharVector("sizes", bufferAllocator);
@@ -344,7 +344,7 @@ public class BaseFileTest {
     vector2.setValueCount(6);
 
     FieldVector encodedVector2 = (FieldVector) DictionaryEncoder.encode(vector2, dictionary2);
-    vector2.close();  // Done with this vector after encoding
+    vector2.close(); // Done with this vector after encoding
 
     List<Field> fields = Arrays.asList(encodedVector1A.getField(), encodedVector1B.getField(),
         encodedVector2.getField());
