@@ -13,7 +13,7 @@
   <parent>
     <artifactId>arrow-memory</artifactId>
     <groupId>org.apache.arrow</groupId>
-    <version>4.0.0</version>
+    <version>siren-4.0.0-1-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
@@ -23,11 +23,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>org.apache.arrow</groupId>
-      <artifactId>arrow-memory-core</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-buffer</artifactId>
     </dependency>
@@ -35,9 +30,11 @@
       <groupId>io.netty</groupId>
       <artifactId>netty-common</artifactId>
     </dependency>
+    <!--provided by elasticsearch-->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.immutables</groupId>

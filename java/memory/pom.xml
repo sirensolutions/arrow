@@ -23,7 +23,7 @@
   <modules>
     <module>memory-core</module>
     <module>memory-unsafe</module>
-    <!--<module>memory-netty</module>-->
+    <module>memory-netty</module>
   </modules>
 
   <build>
