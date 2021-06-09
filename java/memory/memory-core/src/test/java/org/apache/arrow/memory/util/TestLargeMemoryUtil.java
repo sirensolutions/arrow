@@ -22,6 +22,7 @@ import java.lang.reflect.Method;
 import java.net.URLClassLoader;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
@@ -61,6 +62,7 @@ public class TestLargeMemoryUtil {
     Assert.assertEquals("integer overflow", ex.getCause().getMessage());
   }
 
+  @Ignore
   @Test
   public void testEnableLargeMemoryUtilCheck() throws Exception {
     String savedNewProperty = System.getProperty("arrow.enable_unsafe_memory_access");
