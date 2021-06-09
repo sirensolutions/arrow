@@ -32,9 +32,9 @@ public class DecimalUtility {
   private DecimalUtility() {}
 
   public static final byte [] zeroes = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   public static final byte [] minus_one = new byte[] {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-                                                      -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+          -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
   private static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
 
   /**
@@ -91,11 +91,11 @@ public class DecimalUtility {
   public static boolean checkPrecisionAndScale(BigDecimal value, int vectorPrecision, int vectorScale) {
     if (value.scale() != vectorScale) {
       throw new UnsupportedOperationException("BigDecimal scale must equal that in the Arrow vector: " +
-          value.scale() + " != " + vectorScale);
+              value.scale() + " != " + vectorScale);
     }
     if (value.precision() > vectorPrecision) {
       throw new UnsupportedOperationException("BigDecimal precision can not be greater than that in the Arrow " +
-        "vector: " + value.precision() + " > " + vectorPrecision);
+              "vector: " + value.precision() + " > " + vectorPrecision);
     }
     return true;
   }
@@ -109,11 +109,11 @@ public class DecimalUtility {
                                                int vectorScale) {
     if (decimalScale != vectorScale) {
       throw new UnsupportedOperationException("BigDecimal scale must equal that in the Arrow vector: " +
-          decimalScale + " != " + vectorScale);
+              decimalScale + " != " + vectorScale);
     }
     if (decimalPrecision > vectorPrecision) {
       throw new UnsupportedOperationException("BigDecimal precision can not be greater than that in the Arrow " +
-          "vector: " + decimalPrecision + " > " + vectorPrecision);
+              "vector: " + decimalPrecision + " > " + vectorPrecision);
     }
     return true;
   }
@@ -135,7 +135,7 @@ public class DecimalUtility {
   public static void writeLongToArrowBuf(long value, ArrowBuf bytebuf, int index, int byteWidth) {
     if (byteWidth != 16 && byteWidth != 32) {
       throw new UnsupportedOperationException("DecimalUtility.writeLongToArrowBuf() currently supports " +
-          "128-bit or 256-bit width data");
+              "128-bit or 256-bit width data");
     }
     final long addressOfValue = bytebuf.memoryAddress() + (long) index * byteWidth;
     final long padValue = Long.signum(value) == -1 ? -1L : 0L;
@@ -183,10 +183,5 @@ public class DecimalUtility {
       bytebuf.setBytes(startIndex + byteWidth - bytes.length, bytes, 0, bytes.length);
       bytebuf.setBytes(startIndex, padBytes, 0, byteWidth - bytes.length);
     }
-
-    // Write LE data
-    byte [] padByes = bytes[0] < 0 ? minus_one : zeroes;
-    bytebuf.setBytes(startIndex, bytesLE, 0, bytes.length);
-    bytebuf.setBytes(startIndex + bytes.length, padByes, 0, DECIMAL_BYTE_LENGTH - bytes.length);
   }
 }

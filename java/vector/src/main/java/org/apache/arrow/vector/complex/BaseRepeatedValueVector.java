@@ -17,6 +17,8 @@
 
 package org.apache.arrow.vector.complex;
 
+import static org.apache.arrow.memory.util.LargeMemoryUtil.capAtMaxInt;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.util.CommonUtil;
 import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.AddOrGetResult;
 import org.apache.arrow.vector.BaseFixedWidthVector;
@@ -31,6 +34,7 @@ import org.apache.arrow.vector.BaseValueVector;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.DensityAwareVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.UInt4Vector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.ZeroVector;
@@ -43,7 +47,7 @@ import org.apache.arrow.vector.util.SchemaChangeRuntimeException;
 import siren.io.netty.buffer.ArrowBuf;
 
 /** Base class for Vectors that contain repeated values. */
-public abstract class BaseRepeatedValueVector extends BaseValueVector implements RepeatedValueVector {
+public abstract class BaseRepeatedValueVector extends BaseValueVector implements RepeatedValueVector, BaseListVector {
 
   public static final FieldVector DEFAULT_DATA_VECTOR = ZeroVector.INSTANCE;
   public static final String DATA_VECTOR_NAME = "$data$";
@@ -53,18 +57,27 @@ public abstract class BaseRepeatedValueVector extends BaseValueVector implements
   protected FieldVector vector;
   protected final CallBack callBack;
   protected int valueCount;
-  protected int offsetAllocationSizeInBytes = INITIAL_VALUE_ALLOCATION * OFFSET_WIDTH;
+  protected long offsetAllocationSizeInBytes = INITIAL_VALUE_ALLOCATION * OFFSET_WIDTH;
+  private final String name;
+
+  protected String defaultDataVectorName = DATA_VECTOR_NAME;
 
   protected BaseRepeatedValueVector(String name, BufferAllocator allocator, CallBack callBack) {
     this(name, allocator, DEFAULT_DATA_VECTOR, callBack);
   }
 
   protected BaseRepeatedValueVector(String name, BufferAllocator allocator, FieldVector vector, CallBack callBack) {
-    super(name, allocator);
+    super(allocator);
+    this.name = name;
     this.offsetBuffer = allocator.getEmpty();
     this.vector = Preconditions.checkNotNull(vector, "data vector cannot be null");
     this.callBack = callBack;
     this.valueCount = 0;
+  }
+
+  @Override
+  public String getName() {
+    return name;
   }
 
   @Override
@@ -100,27 +113,30 @@ public abstract class BaseRepeatedValueVector extends BaseValueVector implements
   }
 
   protected void reallocOffsetBuffer() {
-    final int currentBufferCapacity = offsetBuffer.capacity();
-    long baseSize = offsetAllocationSizeInBytes;
-
-    if (baseSize < (long) currentBufferCapacity) {
-      baseSize = (long) currentBufferCapacity;
+    final long currentBufferCapacity = offsetBuffer.capacity();
+    long newAllocationSize = currentBufferCapacity * 2;
+    if (newAllocationSize == 0) {
+      if (offsetAllocationSizeInBytes > 0) {
+        newAllocationSize = offsetAllocationSizeInBytes;
+      } else {
+        newAllocationSize = INITIAL_VALUE_ALLOCATION * OFFSET_WIDTH * 2;
+      }
     }
 
     newAllocationSize = CommonUtil.nextPowerOfTwo(newAllocationSize);
     newAllocationSize = Math.min(newAllocationSize, (long) (OFFSET_WIDTH) * Integer.MAX_VALUE);
     assert newAllocationSize >= 1;
 
-    if (newAllocationSize > MAX_ALLOCATION_SIZE) {
+    if (newAllocationSize > MAX_ALLOCATION_SIZE || newAllocationSize <= offsetBuffer.capacity()) {
       throw new OversizedAllocationException("Unable to expand the buffer");
     }
 
-    final ArrowBuf newBuf = allocator.buffer((int) newAllocationSize);
+    final ArrowBuf newBuf = allocator.buffer(newAllocationSize);
     newBuf.setBytes(0, offsetBuffer, 0, currentBufferCapacity);
     newBuf.setZero(currentBufferCapacity, newBuf.capacity() - currentBufferCapacity);
     offsetBuffer.getReferenceManager().release(1);
     offsetBuffer = newBuf;
-    offsetAllocationSizeInBytes = (int) newAllocationSize;
+    offsetAllocationSizeInBytes = newAllocationSize;
   }
 
   @Override
@@ -194,12 +210,12 @@ public abstract class BaseRepeatedValueVector extends BaseValueVector implements
   }
 
   protected int getOffsetBufferValueCapacity() {
-    return offsetBuffer.capacity() / OFFSET_WIDTH;
+    return capAtMaxInt(offsetBuffer.capacity() / OFFSET_WIDTH);
   }
 
   @Override
   public int getBufferSize() {
-    if (getValueCount() == 0) {
+    if (valueCount == 0) {
       return 0;
     }
     return ((valueCount + 1) * OFFSET_WIDTH) + vector.getBufferSize();
@@ -211,7 +227,9 @@ public abstract class BaseRepeatedValueVector extends BaseValueVector implements
       return 0;
     }
 
-    return ((valueCount + 1) * OFFSET_WIDTH) + vector.getBufferSizeFor(valueCount);
+    int innerVectorValueCount = offsetBuffer.getInt(valueCount * OFFSET_WIDTH);
+
+    return ((valueCount + 1) * OFFSET_WIDTH) + vector.getBufferSizeFor(innerVectorValueCount);
   }
 
   @Override
@@ -268,8 +286,8 @@ public abstract class BaseRepeatedValueVector extends BaseValueVector implements
    */
   public <T extends ValueVector> AddOrGetResult<T> addOrGetVector(FieldType fieldType) {
     boolean created = false;
-    if (vector instanceof ZeroVector) {
-      vector = fieldType.createNewSingleVector(DATA_VECTOR_NAME, allocator, callBack);
+    if (vector instanceof NullVector) {
+      vector = fieldType.createNewSingleVector(defaultDataVectorName, allocator, callBack);
       // returned vector must have the same field
       created = true;
       if (callBack != null &&
@@ -292,7 +310,6 @@ public abstract class BaseRepeatedValueVector extends BaseValueVector implements
     vector.clear();
     vector = v;
   }
-
 
   @Override
   public int getValueCount() {

@@ -23,13 +23,17 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.complex.BaseRepeatedValueVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.complex.reader.FieldReader;
 import org.apache.arrow.vector.types.Types.MinorType;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.TransferPair;
 import org.junit.After;
@@ -135,13 +139,13 @@ public class TestListVector {
       BigIntVector dataVector = (BigIntVector) listVector.getDataVector();
 
       /* check current lastSet */
-      assertEquals(Integer.toString(0), Integer.toString(listVector.getLastSet()));
+      assertEquals(Integer.toString(-1), Integer.toString(listVector.getLastSet()));
 
       int index = 0;
       int offset = 0;
 
       /* write [10, 11, 12] to the list vector at index 0 */
-      BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+      BitVectorHelper.setBit(validityBuffer, index);
       dataVector.setSafe(0, 1, 10);
       dataVector.setSafe(1, 1, 11);
       dataVector.setSafe(2, 1, 12);
@@ -150,7 +154,7 @@ public class TestListVector {
       index += 1;
 
       /* write [13, 14] to the list vector at index 1 */
-      BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+      BitVectorHelper.setBit(validityBuffer, index);
       dataVector.setSafe(3, 1, 13);
       dataVector.setSafe(4, 1, 14);
       offsetBuffer.setInt((index + 1) * ListVector.OFFSET_WIDTH, 5);
@@ -158,14 +162,14 @@ public class TestListVector {
       index += 1;
 
       /* write [15, 16, 17] to the list vector at index 2 */
-      BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+      BitVectorHelper.setBit(validityBuffer, index);
       dataVector.setSafe(5, 1, 15);
       dataVector.setSafe(6, 1, 16);
       dataVector.setSafe(7, 1, 17);
       offsetBuffer.setInt((index + 1) * ListVector.OFFSET_WIDTH, 8);
 
       /* check current lastSet */
-      assertEquals(Integer.toString(0), Integer.toString(listVector.getLastSet()));
+      assertEquals(Integer.toString(-1), Integer.toString(listVector.getLastSet()));
 
       /* set lastset and arbitrary valuecount for list vector.
        *
@@ -206,7 +210,7 @@ public class TestListVector {
        *                [15, 16, 17]
        *              }
        */
-      listVector.setLastSet(3);
+      listVector.setLastSet(2);
       listVector.setValueCount(10);
 
       /* (3+2+3)/10 */
@@ -307,7 +311,7 @@ public class TestListVector {
 
       listVector.setValueCount(5);
 
-      assertEquals(5, listVector.getLastSet());
+      assertEquals(4, listVector.getLastSet());
 
       /* get offset buffer */
       final ArrowBuf offsetBuffer = listVector.getOffsetBuffer();
@@ -501,7 +505,7 @@ public class TestListVector {
 
       listWriter.endList();
 
-      assertEquals(2, listVector.getLastSet());
+      assertEquals(1, listVector.getLastSet());
 
       listVector.setValueCount(2);
 
@@ -635,7 +639,7 @@ public class TestListVector {
 
       listWriter.endList();
 
-      assertEquals(2, listVector.getLastSet());
+      assertEquals(1, listVector.getLastSet());
 
       listVector.setValueCount(2);
 
@@ -830,7 +834,7 @@ public class TestListVector {
   public void testClearAndReuse() {
     try (final ListVector vector = ListVector.empty("list", allocator)) {
       BigIntVector bigIntVector =
-          (BigIntVector) vector.addOrGetVector(FieldType.nullable(MinorType.BIGINT.getType())).getVector();
+              (BigIntVector) vector.addOrGetVector(FieldType.nullable(MinorType.BIGINT.getType())).getVector();
       vector.setInitialCapacity(10);
       vector.allocateNew();
 
@@ -870,5 +874,109 @@ public class TestListVector {
       resultSet = (ArrayList<Long>) result;
       assertEquals(new Long(8), resultSet.get(0));
     }
+  }
+
+  @Test
+  public void testWriterGetField() {
+    try (final ListVector vector = ListVector.empty("list", allocator)) {
+
+      UnionListWriter writer = vector.getWriter();
+      writer.allocate();
+
+      //set some values
+      writer.startList();
+      writer.integer().writeInt(1);
+      writer.integer().writeInt(2);
+      writer.endList();
+      vector.setValueCount(2);
+
+      Field expectedDataField = new Field(BaseRepeatedValueVector.DATA_VECTOR_NAME,
+              FieldType.nullable(new ArrowType.Int(32, true)), null);
+      Field expectedField = new Field(vector.getName(), FieldType.nullable(ArrowType.List.INSTANCE),
+              Arrays.asList(expectedDataField));
+
+      assertEquals(expectedField, writer.getField());
+    }
+  }
+
+  @Test
+  public void testClose() throws Exception {
+    try (final ListVector vector = ListVector.empty("list", allocator)) {
+
+      UnionListWriter writer = vector.getWriter();
+      writer.allocate();
+
+      //set some values
+      writer.startList();
+      writer.integer().writeInt(1);
+      writer.integer().writeInt(2);
+      writer.endList();
+      vector.setValueCount(2);
+
+      assertTrue(vector.getBufferSize() > 0);
+      assertTrue(vector.getDataVector().getBufferSize() > 0);
+
+      writer.close();
+      assertEquals(0, vector.getBufferSize());
+      assertEquals(0, vector.getDataVector().getBufferSize());
+    }
+  }
+
+  @Test
+  public void testGetBufferSizeFor() {
+    try (final ListVector vector = ListVector.empty("list", allocator)) {
+
+      UnionListWriter writer = vector.getWriter();
+      writer.allocate();
+
+      //set some values
+      writeIntValues(writer, new int[] {1, 2});
+      writeIntValues(writer, new int[] {3, 4});
+      writeIntValues(writer, new int[] {5, 6});
+      writeIntValues(writer, new int[] {7, 8, 9, 10});
+      writeIntValues(writer, new int[] {11, 12, 13, 14});
+      writer.setValueCount(5);
+
+      IntVector dataVector = (IntVector) vector.getDataVector();
+      int[] indices = new int[] {0, 2, 4, 6, 10, 14};
+
+      for (int valueCount = 1; valueCount <= 5; valueCount++) {
+        int validityBufferSize = BitVectorHelper.getValidityBufferSize(valueCount);
+        int offsetBufferSize = (valueCount + 1) * BaseRepeatedValueVector.OFFSET_WIDTH;
+
+        int expectedSize = validityBufferSize + offsetBufferSize + dataVector.getBufferSizeFor(indices[valueCount]);
+        assertEquals(expectedSize, vector.getBufferSizeFor(valueCount));
+      }
+    }
+  }
+
+  @Test
+  public void testIsEmpty() {
+    try (final ListVector vector = ListVector.empty("list", allocator)) {
+      UnionListWriter writer = vector.getWriter();
+      writer.allocate();
+
+      // set values [1,2], null, [], [5,6]
+      writeIntValues(writer, new int[] {1, 2});
+      writer.setPosition(2);
+      writeIntValues(writer, new int[] {});
+      writeIntValues(writer, new int[] {5, 6});
+      writer.setValueCount(4);
+
+      assertFalse(vector.isEmpty(0));
+      assertTrue(vector.isNull(1));
+      assertTrue(vector.isEmpty(1));
+      assertFalse(vector.isNull(2));
+      assertTrue(vector.isEmpty(2));
+      assertFalse(vector.isEmpty(3));
+    }
+  }
+
+  private void writeIntValues(UnionListWriter writer, int[] values) {
+    writer.startList();
+    for (int v: values) {
+      writer.integer().writeInt(v);
+    }
+    writer.endList();
   }
 }

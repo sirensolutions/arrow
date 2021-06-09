@@ -25,6 +25,7 @@ import org.apache.arrow.vector.complex.reader.FieldReader;
 import org.apache.arrow.vector.holders.NullableTimeMicroHolder;
 import org.apache.arrow.vector.holders.TimeMicroHolder;
 import org.apache.arrow.vector.types.Types.MinorType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.TransferPair;
 
@@ -36,7 +37,7 @@ import siren.io.netty.buffer.ArrowBuf;
  * A validity buffer (bit vector) is maintained to track which elements in the
  * vector are null.
  */
-public class TimeMicroVector extends BaseFixedWidthVector {
+public final class TimeMicroVector extends BaseFixedWidthVector {
   private static final byte TYPE_WIDTH = 8;
   private final FieldReader reader;
 
@@ -60,7 +61,18 @@ public class TimeMicroVector extends BaseFixedWidthVector {
    * @param allocator allocator for memory management.
    */
   public TimeMicroVector(String name, FieldType fieldType, BufferAllocator allocator) {
-    super(name, allocator, fieldType, TYPE_WIDTH);
+    this(new Field(name, fieldType, null), allocator);
+  }
+
+  /**
+   * Instantiate a TimeMicroVector. This doesn't allocate any memory for
+   * the data in vector.
+   *
+   * @param field Field materialized by this vector
+   * @param allocator allocator for memory management.
+   */
+  public TimeMicroVector(Field field, BufferAllocator allocator) {
+    super(field, allocator, TYPE_WIDTH);
     reader = new TimeMicroReaderImpl(TimeMicroVector.this);
   }
 
@@ -102,7 +114,7 @@ public class TimeMicroVector extends BaseFixedWidthVector {
     if (NULL_CHECKING_ENABLED && isSet(index) == 0) {
       throw new IllegalStateException("Value at index is null");
     }
-    return valueBuffer.getLong(index * TYPE_WIDTH);
+    return valueBuffer.getLong((long) index * TYPE_WIDTH);
   }
 
   /**
@@ -118,7 +130,7 @@ public class TimeMicroVector extends BaseFixedWidthVector {
       return;
     }
     holder.isSet = 1;
-    holder.value = valueBuffer.getLong(index * TYPE_WIDTH);
+    holder.value = valueBuffer.getLong((long) index * TYPE_WIDTH);
   }
 
   /**
@@ -131,38 +143,9 @@ public class TimeMicroVector extends BaseFixedWidthVector {
     if (isSet(index) == 0) {
       return null;
     } else {
-      return valueBuffer.getLong(index * TYPE_WIDTH);
+      return valueBuffer.getLong((long) index * TYPE_WIDTH);
     }
   }
-
-  /**
-   * Copy a cell value from a particular index in source vector to a particular
-   * position in this vector.
-   *
-   * @param fromIndex position to copy from in source vector
-   * @param thisIndex position to copy to in this vector
-   * @param from source vector
-   */
-  public void copyFrom(int fromIndex, int thisIndex, TimeMicroVector from) {
-    BitVectorHelper.setValidityBit(validityBuffer, thisIndex, from.isSet(fromIndex));
-    final long value = from.valueBuffer.getLong(fromIndex * TYPE_WIDTH);
-    valueBuffer.setLong(thisIndex * TYPE_WIDTH, value);
-  }
-
-  /**
-   * Same as {@link #copyFrom(int, int, TimeMicroVector)} except that
-   * it handles the case when the capacity of the vector needs to be expanded
-   * before copy.
-   *
-   * @param fromIndex position to copy from in source vector
-   * @param thisIndex position to copy to in this vector
-   * @param from source vector
-   */
-  public void copyFromSafe(int fromIndex, int thisIndex, TimeMicroVector from) {
-    handleSafe(thisIndex);
-    copyFrom(fromIndex, thisIndex, from);
-  }
-
 
   /*----------------------------------------------------------------*
    |                                                                |
@@ -172,7 +155,7 @@ public class TimeMicroVector extends BaseFixedWidthVector {
 
 
   private void setValue(int index, long value) {
-    valueBuffer.setLong(index * TYPE_WIDTH, value);
+    valueBuffer.setLong((long) index * TYPE_WIDTH, value);
   }
 
   /**
@@ -182,7 +165,7 @@ public class TimeMicroVector extends BaseFixedWidthVector {
    * @param value   value of element
    */
   public void set(int index, long value) {
-    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+    BitVectorHelper.setBit(validityBuffer, index);
     setValue(index, value);
   }
 
@@ -198,10 +181,10 @@ public class TimeMicroVector extends BaseFixedWidthVector {
     if (holder.isSet < 0) {
       throw new IllegalArgumentException();
     } else if (holder.isSet > 0) {
-      BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+      BitVectorHelper.setBit(validityBuffer, index);
       setValue(index, holder.value);
     } else {
-      BitVectorHelper.setValidityBit(validityBuffer, index, 0);
+      BitVectorHelper.unsetBit(validityBuffer, index);
     }
   }
 
@@ -212,7 +195,7 @@ public class TimeMicroVector extends BaseFixedWidthVector {
    * @param holder  data holder for value of element
    */
   public void set(int index, TimeMicroHolder holder) {
-    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+    BitVectorHelper.setBit(validityBuffer, index);
     setValue(index, holder.value);
   }
 
@@ -256,18 +239,6 @@ public class TimeMicroVector extends BaseFixedWidthVector {
   }
 
   /**
-   * Set the element at the given index to null.
-   *
-   * @param index   position of element
-   */
-  public void setNull(int index) {
-    handleSafe(index);
-    // not really needed to set the bit to 0 as long as
-    // the buffer always starts from 0.
-    BitVectorHelper.setValidityBit(validityBuffer, index, 0);
-  }
-
-  /**
    * Store the given value at a particular position in the vector. isSet indicates
    * whether the value is NULL or not.
    *
@@ -279,7 +250,7 @@ public class TimeMicroVector extends BaseFixedWidthVector {
     if (isSet > 0) {
       set(index, value);
     } else {
-      BitVectorHelper.setValidityBit(validityBuffer, index, 0);
+      BitVectorHelper.unsetBit(validityBuffer, index);
     }
   }
 
@@ -308,7 +279,7 @@ public class TimeMicroVector extends BaseFixedWidthVector {
    * @return value stored at the index.
    */
   public static long get(final ArrowBuf buffer, int index) {
-    return buffer.getLong(index * TYPE_WIDTH);
+    return buffer.getLong((long) index * TYPE_WIDTH);
   }
 
 

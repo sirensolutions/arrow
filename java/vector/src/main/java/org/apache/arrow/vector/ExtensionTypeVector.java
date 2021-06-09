@@ -22,6 +22,8 @@ import java.util.List;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.OutOfMemoryException;
+import org.apache.arrow.util.Preconditions;
+import org.apache.arrow.vector.compare.VectorVisitor;
 import org.apache.arrow.vector.complex.reader.FieldReader;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.Types.MinorType;
@@ -39,10 +41,34 @@ public abstract class ExtensionTypeVector<T extends BaseValueVector & FieldVecto
     FieldVector {
 
   private final T underlyingVector;
+  private final String name;
 
+  /**
+   * Instantiate an extension type vector.
+   * @param name name of the vector
+   * @param allocator allocator for memory management
+   * @param underlyingVector underlying filed vector
+   */
   public ExtensionTypeVector(String name, BufferAllocator allocator, T underlyingVector) {
-    super(name, allocator);
+    super(allocator);
+    Preconditions.checkNotNull(underlyingVector, "underlyingVector can not be null.");
+    this.name = name;
     this.underlyingVector = underlyingVector;
+  }
+
+  /**
+   * Instantiate an extension type vector.
+   * @param field field materialized by this vector.
+   * @param allocator allocator for memory management
+   * @param underlyingVector underlying filed vector
+   */
+  public ExtensionTypeVector(Field field, BufferAllocator allocator, T underlyingVector) {
+    this(field.getName(), allocator, underlyingVector);
+  }
+
+  @Override
+  public String getName() {
+    return name;
   }
 
   /** Get the underlying vector. */
@@ -232,5 +258,10 @@ public abstract class ExtensionTypeVector<T extends BaseValueVector & FieldVecto
   @Override
   public BufferAllocator getAllocator() {
     return underlyingVector.getAllocator();
+  }
+
+  @Override
+  public <OUT, IN> OUT accept(VectorVisitor<OUT, IN> visitor, IN value) {
+    return getUnderlyingVector().accept(visitor, value);
   }
 }

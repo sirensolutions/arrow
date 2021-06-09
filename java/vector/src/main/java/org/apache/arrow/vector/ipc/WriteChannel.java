@@ -37,9 +37,17 @@ import siren.io.netty.buffer.ArrowBuf;
  * <p>All write methods in this class follow full write semantics, i.e., write calls
  * only return after requested data has been fully written. Note this is different
  * from java WritableByteChannel interface where partial write is allowed
+ * </p>
+ * <p>
+ *   Please note that objects of this class are not thread-safe.
+ * </p>
  */
 public class WriteChannel implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(WriteChannel.class);
+
+  private static final byte[] ZERO_BYTES = new byte[8];
+
+  private final byte[] intBuf = new byte[4];
 
   private long currentPosition = 0;
 
@@ -62,19 +70,33 @@ public class WriteChannel implements AutoCloseable {
     return write(ByteBuffer.wrap(buffer));
   }
 
-  /**
-   * Writes <zeroCount>zeroCount</zeroCount> zeros the underlying channel.
-   */
-  public long writeZeros(int zeroCount) throws IOException {
-    return write(new byte[zeroCount]);
+  long write(byte[] buffer, int offset, int length) throws IOException {
+    return write(ByteBuffer.wrap(buffer, offset, length));
   }
 
   /**
-   * Writes enough bytes to align the channel to an 8-byte bounary.
+   * Writes <zeroCount>zeroCount</zeroCount> zeros the underlying channel.
+   */
+  public long writeZeros(long zeroCount) throws IOException {
+    long bytesWritten = 0;
+    long wholeWordsEnd = zeroCount - 8;
+    while (bytesWritten <= wholeWordsEnd) {
+      bytesWritten += write(ZERO_BYTES);
+    }
+
+    if (bytesWritten < zeroCount) {
+      bytesWritten += write(ZERO_BYTES, 0, (int) (zeroCount - bytesWritten));
+    }
+    return bytesWritten;
+  }
+
+  /**
+   * Writes enough bytes to align the channel to an 8-byte boundary.
    */
   public long align() throws IOException {
-    if (currentPosition % 8 != 0) { // align on 8 byte boundaries
-      return writeZeros(8 - (int) (currentPosition % 8));
+    int trailingByteSize = (int) (currentPosition % 8);
+    if (trailingByteSize != 0) { // align on 8 byte boundaries
+      return writeZeros(8 - trailingByteSize);
     }
     return 0;
   }
@@ -84,7 +106,9 @@ public class WriteChannel implements AutoCloseable {
    */
   public long write(ByteBuffer buffer) throws IOException {
     long length = buffer.remaining();
-    LOGGER.debug("Writing buffer with size: {}", length);
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Writing buffer with size: {}", length);
+    }
     while (buffer.hasRemaining()) {
       out.write(buffer);
     }
@@ -96,17 +120,23 @@ public class WriteChannel implements AutoCloseable {
    * Writes <code>v</code> in little-endian format to the underlying channel.
    */
   public long writeIntLittleEndian(int v) throws IOException {
-    byte[] outBuffer = new byte[4];
-    MessageSerializer.intToBytes(v, outBuffer);
-    return write(outBuffer);
+    MessageSerializer.intToBytes(v, intBuf);
+    return write(intBuf);
   }
 
   /**
    * Writes the buffer to the underlying channel.
    */
   public void write(ArrowBuf buffer) throws IOException {
-    ByteBuffer nioBuffer = buffer.nioBuffer(buffer.readerIndex(), buffer.readableBytes());
-    write(nioBuffer);
+    long bytesWritten = 0;
+    while (bytesWritten < buffer.readableBytes()) {
+      int bytesToWrite = (int) Math.min(Integer.MAX_VALUE, buffer.readableBytes() - bytesWritten);
+      ByteBuffer nioBuffer = buffer.nioBuffer(buffer.readerIndex() + bytesWritten,
+              bytesToWrite);
+      write(nioBuffer);
+      bytesWritten += bytesToWrite;
+    }
+
   }
 
   /**

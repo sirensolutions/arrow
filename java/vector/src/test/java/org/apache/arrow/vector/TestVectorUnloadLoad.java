@@ -150,13 +150,13 @@ public class TestVectorUnloadLoad {
         List<ArrowBuf> oldBuffers = recordBatch.getBuffers();
         List<ArrowBuf> newBuffers = new ArrayList<>();
         for (ArrowBuf oldBuffer : oldBuffers) {
-          int l = oldBuffer.readableBytes();
+          long l = oldBuffer.readableBytes();
           if (l % 64 != 0) {
             // pad
             l = l + 64 - l % 64;
           }
           ArrowBuf newBuffer = allocator.buffer(l);
-          for (int i = oldBuffer.readerIndex(); i < oldBuffer.writerIndex(); i++) {
+          for (long i = oldBuffer.readerIndex(); i < oldBuffer.writerIndex(); i++) {
             newBuffer.setByte(i - oldBuffer.readerIndex(), oldBuffer.getByte(i));
           }
           newBuffer.readerIndex(0);
@@ -213,9 +213,9 @@ public class TestVectorUnloadLoad {
       values[i + 1] = buf2;
       for (int j = 0; j < count; j++) {
         if (i == 2) {
-          BitVectorHelper.setValidityBit(buf1, j, 0);
+          BitVectorHelper.unsetBit(buf1, j);
         } else {
-          BitVectorHelper.setValidityBitToOne(buf1, j);
+          BitVectorHelper.setBit(buf1, j);
         }
 
         buf2.setInt(j * 4, j);
@@ -278,13 +278,13 @@ public class TestVectorUnloadLoad {
   public void testUnloadLoadDuplicates() throws IOException {
     int count = 10;
     Schema schema = new Schema(asList(
-        new Field("duplicate", FieldType.nullable(new ArrowType.Int(32, true)), Collections.<Field>emptyList()),
-        new Field("duplicate", FieldType.nullable(new ArrowType.Int(32, true)), Collections.<Field>emptyList())
+            new Field("duplicate", FieldType.nullable(new ArrowType.Int(32, true)), Collections.<Field>emptyList()),
+            new Field("duplicate", FieldType.nullable(new ArrowType.Int(32, true)), Collections.<Field>emptyList())
     ));
 
     try (
-        BufferAllocator originalVectorsAllocator =
-            allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
+            BufferAllocator originalVectorsAllocator =
+                    allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
     ) {
       List<FieldVector> sources = new ArrayList<>();
       for (Field field : schema.getFields()) {
@@ -302,7 +302,7 @@ public class TestVectorUnloadLoad {
         VectorUnloader vectorUnloader = new VectorUnloader(root);
         try (ArrowRecordBatch recordBatch = vectorUnloader.getRecordBatch();
              BufferAllocator finalVectorsAllocator =
-                 allocator.newChildAllocator("final vectors", 0, Integer.MAX_VALUE);
+                     allocator.newChildAllocator("final vectors", 0, Integer.MAX_VALUE);
              VectorSchemaRoot newRoot = VectorSchemaRoot.create(schema, finalVectorsAllocator);) {
           // load it
           VectorLoader vectorLoader = new VectorLoader(newRoot);

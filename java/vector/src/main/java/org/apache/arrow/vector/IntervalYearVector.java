@@ -27,6 +27,7 @@ import org.apache.arrow.vector.complex.reader.FieldReader;
 import org.apache.arrow.vector.holders.IntervalYearHolder;
 import org.apache.arrow.vector.holders.NullableIntervalYearHolder;
 import org.apache.arrow.vector.types.Types.MinorType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.TransferPair;
 
@@ -37,7 +38,7 @@ import siren.io.netty.buffer.ArrowBuf;
  * interval (years and months) values which could be null. A validity buffer
  * (bit vector) is maintained to track which elements in the vector are null.
  */
-public class IntervalYearVector extends BaseFixedWidthVector {
+public final class IntervalYearVector extends BaseFixedWidthVector {
   private static final byte TYPE_WIDTH = 4;
   private final FieldReader reader;
 
@@ -61,7 +62,18 @@ public class IntervalYearVector extends BaseFixedWidthVector {
    * @param allocator allocator for memory management.
    */
   public IntervalYearVector(String name, FieldType fieldType, BufferAllocator allocator) {
-    super(name, allocator, fieldType, TYPE_WIDTH);
+    this(new Field(name, fieldType, null), allocator);
+  }
+
+  /**
+   * Instantiate a IntervalYearVector. This doesn't allocate any memory for
+   * the data in vector.
+   *
+   * @param field field materialized by this vector
+   * @param allocator allocator for memory management.
+   */
+  public IntervalYearVector(Field field, BufferAllocator allocator) {
+    super(field, allocator, TYPE_WIDTH);
     reader = new IntervalYearReaderImpl(IntervalYearVector.this);
   }
 
@@ -105,7 +117,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
    * @return value stored at the index.
    */
   public static int getTotalMonths(final ArrowBuf buffer, final int index) {
-    return buffer.getInt(index * TYPE_WIDTH);
+    return buffer.getInt((long) index * TYPE_WIDTH);
   }
 
   /**
@@ -118,7 +130,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
     if (NULL_CHECKING_ENABLED && isSet(index) == 0) {
       throw new IllegalStateException("Value at index is null");
     }
-    return valueBuffer.getInt(index * TYPE_WIDTH);
+    return valueBuffer.getInt((long) index * TYPE_WIDTH);
   }
 
   /**
@@ -134,7 +146,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
       return;
     }
     holder.isSet = 1;
-    holder.value = valueBuffer.getInt(index * TYPE_WIDTH);
+    holder.value = valueBuffer.getInt((long) index * TYPE_WIDTH);
   }
 
   /**
@@ -147,7 +159,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
     if (isSet(index) == 0) {
       return null;
     } else {
-      final int interval = valueBuffer.getInt(index * TYPE_WIDTH);
+      final int interval = valueBuffer.getInt((long) index * TYPE_WIDTH);
       // TODO: verify interval is in months
       return Period.ofMonths(interval);
     }
@@ -169,7 +181,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
   }
 
   private StringBuilder getAsStringBuilderHelper(int index) {
-    int value = valueBuffer.getInt(index * TYPE_WIDTH);
+    int value = valueBuffer.getInt((long) index * TYPE_WIDTH);
 
     final int years = (value / org.apache.arrow.vector.util.DateUtility.yearsToMonths);
     final int months = (value % org.apache.arrow.vector.util.DateUtility.yearsToMonths);
@@ -178,40 +190,11 @@ public class IntervalYearVector extends BaseFixedWidthVector {
     final String monthString = (Math.abs(months) == 1) ? " month " : " months ";
 
     return (new StringBuilder()
-        .append(years)
-        .append(yearString)
-        .append(months)
-        .append(monthString));
+            .append(years)
+            .append(yearString)
+            .append(months)
+            .append(monthString));
   }
-
-  /**
-   * Copy a cell value from a particular index in source vector to a particular
-   * position in this vector.
-   *
-   * @param fromIndex position to copy from in source vector
-   * @param thisIndex position to copy to in this vector
-   * @param from source vector
-   */
-  public void copyFrom(int fromIndex, int thisIndex, IntervalYearVector from) {
-    BitVectorHelper.setValidityBit(validityBuffer, thisIndex, from.isSet(fromIndex));
-    final int value = from.valueBuffer.getInt(fromIndex * TYPE_WIDTH);
-    valueBuffer.setInt(thisIndex * TYPE_WIDTH, value);
-  }
-
-  /**
-   * Same as {@link #copyFrom(int, int, IntervalYearVector)} except that
-   * it handles the case when the capacity of the vector needs to be expanded
-   * before copy.
-   *
-   * @param fromIndex position to copy from in source vector
-   * @param thisIndex position to copy to in this vector
-   * @param from source vector
-   */
-  public void copyFromSafe(int fromIndex, int thisIndex, IntervalYearVector from) {
-    handleSafe(thisIndex);
-    copyFrom(fromIndex, thisIndex, from);
-  }
-
 
   /*----------------------------------------------------------------*
    |                                                                |
@@ -221,7 +204,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
 
 
   private void setValue(int index, int value) {
-    valueBuffer.setInt(index * TYPE_WIDTH, value);
+    valueBuffer.setInt((long) index * TYPE_WIDTH, value);
   }
 
   /**
@@ -231,7 +214,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
    * @param value   value of element
    */
   public void set(int index, int value) {
-    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+    BitVectorHelper.setBit(validityBuffer, index);
     setValue(index, value);
   }
 
@@ -247,10 +230,10 @@ public class IntervalYearVector extends BaseFixedWidthVector {
     if (holder.isSet < 0) {
       throw new IllegalArgumentException();
     } else if (holder.isSet > 0) {
-      BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+      BitVectorHelper.setBit(validityBuffer, index);
       setValue(index, holder.value);
     } else {
-      BitVectorHelper.setValidityBit(validityBuffer, index, 0);
+      BitVectorHelper.unsetBit(validityBuffer, index);
     }
   }
 
@@ -261,7 +244,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
    * @param holder  data holder for value of element
    */
   public void set(int index, IntervalYearHolder holder) {
-    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+    BitVectorHelper.setBit(validityBuffer, index);
     setValue(index, holder.value);
   }
 
@@ -305,18 +288,6 @@ public class IntervalYearVector extends BaseFixedWidthVector {
   }
 
   /**
-   * Set the element at the given index to null.
-   *
-   * @param index   position of element
-   */
-  public void setNull(int index) {
-    handleSafe(index);
-    // not really needed to set the bit to 0 as long as
-    // the buffer always starts from 0.
-    BitVectorHelper.setValidityBit(validityBuffer, index, 0);
-  }
-
-  /**
    * Store the given value at a particular position in the vector. isSet indicates
    * whether the value is NULL or not.
    *
@@ -328,7 +299,7 @@ public class IntervalYearVector extends BaseFixedWidthVector {
     if (isSet > 0) {
       set(index, value);
     } else {
-      BitVectorHelper.setValidityBit(validityBuffer, index, 0);
+      BitVectorHelper.unsetBit(validityBuffer, index);
     }
   }
 

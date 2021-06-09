@@ -43,22 +43,32 @@ import org.apache.arrow.memory.util.CommonUtil;
 import org.apache.arrow.vector.compare.Range;
 import org.apache.arrow.vector.compare.RangeEqualsVisitor;
 import org.apache.arrow.vector.compare.VectorEqualsVisitor;
+import org.apache.arrow.vector.complex.DenseUnionVector;
 import org.apache.arrow.vector.complex.FixedSizeListVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.complex.UnionVector;
+import org.apache.arrow.vector.complex.impl.NullableStructWriter;
+import org.apache.arrow.vector.complex.impl.UnionListWriter;
+import org.apache.arrow.vector.holders.NullableIntHolder;
+import org.apache.arrow.vector.holders.NullableUInt4Holder;
+import org.apache.arrow.vector.holders.NullableVarBinaryHolder;
+import org.apache.arrow.vector.holders.NullableVarCharHolder;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.Types.MinorType;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.OversizedAllocationException;
+import org.apache.arrow.vector.util.Text;
+import org.apache.arrow.vector.util.TransferPair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import siren.io.netty.buffer.ArrowBuf;
-
 
 public class TestValueVector {
 
@@ -79,7 +89,7 @@ public class TestValueVector {
   private static final byte[] STR5 = "EEE5".getBytes(utf8Charset);
   private static final byte[] STR6 = "FFFFF6".getBytes(utf8Charset);
   private static final int MAX_VALUE_COUNT =
-      (int) (Integer.getInteger("arrow.vector.max_allocation_bytes", Integer.MAX_VALUE) / 7);
+          (int) (Integer.getInteger("arrow.vector.max_allocation_bytes", Integer.MAX_VALUE) / 7);
   private static final int MAX_VALUE_COUNT_8BYTE = (int) (MAX_VALUE_COUNT / 2);
 
   @After
@@ -489,7 +499,7 @@ public class TestValueVector {
 
     // Create a new value vector for 1024 integers.
     try (final UInt4Vector vector = newVector(UInt4Vector.class, EMPTY_SCHEMA_PATH, new ArrowType.Int(32, false),
-        allocator);) {
+            allocator);) {
       boolean error = false;
       int initialCapacity = 1024;
 
@@ -2314,7 +2324,7 @@ public class TestValueVector {
   @Test
   public void testGetPointerVariableWidth() {
     final String[] sampleData = new String[]{
-      "abc", "123", "def", null, "hello", "aaaaa", "world", "2019", null, "0717"};
+            "abc", "123", "def", null, "hello", "aaaaa", "world", "2019", null, "0717"};
 
     try (VarCharVector vec1 = new VarCharVector("vec1", allocator);
          VarCharVector vec2 = new VarCharVector("vec2", allocator)) {

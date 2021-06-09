@@ -27,6 +27,7 @@ import org.apache.arrow.vector.complex.reader.FieldReader;
 import org.apache.arrow.vector.holders.DateMilliHolder;
 import org.apache.arrow.vector.holders.NullableDateMilliHolder;
 import org.apache.arrow.vector.types.Types.MinorType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.DateUtility;
 import org.apache.arrow.vector.util.TransferPair;
@@ -38,7 +39,7 @@ import siren.io.netty.buffer.ArrowBuf;
  * date values which could be null. A validity buffer (bit vector) is
  * maintained to track which elements in the vector are null.
  */
-public class DateMilliVector extends BaseFixedWidthVector {
+public final class DateMilliVector extends BaseFixedWidthVector {
   private static final byte TYPE_WIDTH = 8;
   private final FieldReader reader;
 
@@ -62,7 +63,18 @@ public class DateMilliVector extends BaseFixedWidthVector {
    * @param allocator allocator for memory management.
    */
   public DateMilliVector(String name, FieldType fieldType, BufferAllocator allocator) {
-    super(name, allocator, fieldType, TYPE_WIDTH);
+    this(new Field(name, fieldType, null), allocator);
+  }
+
+  /**
+   * Instantiate a DateMilliVector. This doesn't allocate any memory for
+   * the data in vector.
+   *
+   * @param field field materialized by this vector
+   * @param allocator allocator for memory management.
+   */
+  public DateMilliVector(Field field, BufferAllocator allocator) {
+    super(field, allocator, TYPE_WIDTH);
     reader = new DateMilliReaderImpl(DateMilliVector.this);
   }
 
@@ -104,7 +116,7 @@ public class DateMilliVector extends BaseFixedWidthVector {
     if (NULL_CHECKING_ENABLED && isSet(index) == 0) {
       throw new IllegalStateException("Value at index is null");
     }
-    return valueBuffer.getLong(index * TYPE_WIDTH);
+    return valueBuffer.getLong((long) index * TYPE_WIDTH);
   }
 
   /**
@@ -120,7 +132,7 @@ public class DateMilliVector extends BaseFixedWidthVector {
       return;
     }
     holder.isSet = 1;
-    holder.value = valueBuffer.getLong(index * TYPE_WIDTH);
+    holder.value = valueBuffer.getLong((long) index * TYPE_WIDTH);
   }
 
   /**
@@ -133,39 +145,10 @@ public class DateMilliVector extends BaseFixedWidthVector {
     if (isSet(index) == 0) {
       return null;
     } else {
-      final long millis = valueBuffer.getLong(index * TYPE_WIDTH);
+      final long millis = valueBuffer.getLong((long) index * TYPE_WIDTH);
       return DateUtility.getLocalDateTimeFromEpochMilli(millis);
     }
   }
-
-  /**
-   * Copy a cell value from a particular index in source vector to a particular
-   * position in this vector.
-   *
-   * @param fromIndex position to copy from in source vector
-   * @param thisIndex position to copy to in this vector
-   * @param from source vector
-   */
-  public void copyFrom(int fromIndex, int thisIndex, DateMilliVector from) {
-    BitVectorHelper.setValidityBit(validityBuffer, thisIndex, from.isSet(fromIndex));
-    final long value = from.valueBuffer.getLong(fromIndex * TYPE_WIDTH);
-    valueBuffer.setLong(thisIndex * TYPE_WIDTH, value);
-  }
-
-  /**
-   * Same as {@link #copyFrom(int, int, DateMilliVector)} except that
-   * it handles the case when the capacity of the vector needs to be expanded
-   * before copy.
-   *
-   * @param fromIndex position to copy from in source vector
-   * @param thisIndex position to copy to in this vector
-   * @param from source vector
-   */
-  public void copyFromSafe(int fromIndex, int thisIndex, DateMilliVector from) {
-    handleSafe(thisIndex);
-    copyFrom(fromIndex, thisIndex, from);
-  }
-
 
   /*----------------------------------------------------------------*
    |                                                                |
@@ -175,7 +158,7 @@ public class DateMilliVector extends BaseFixedWidthVector {
 
 
   private void setValue(int index, long value) {
-    valueBuffer.setLong(index * TYPE_WIDTH, value);
+    valueBuffer.setLong((long) index * TYPE_WIDTH, value);
   }
 
   /**
@@ -185,7 +168,7 @@ public class DateMilliVector extends BaseFixedWidthVector {
    * @param value   value of element
    */
   public void set(int index, long value) {
-    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+    BitVectorHelper.setBit(validityBuffer, index);
     setValue(index, value);
   }
 
@@ -201,10 +184,10 @@ public class DateMilliVector extends BaseFixedWidthVector {
     if (holder.isSet < 0) {
       throw new IllegalArgumentException();
     } else if (holder.isSet > 0) {
-      BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+      BitVectorHelper.setBit(validityBuffer, index);
       setValue(index, holder.value);
     } else {
-      BitVectorHelper.setValidityBit(validityBuffer, index, 0);
+      BitVectorHelper.unsetBit(validityBuffer, index);
     }
   }
 
@@ -215,7 +198,7 @@ public class DateMilliVector extends BaseFixedWidthVector {
    * @param holder  data holder for value of element
    */
   public void set(int index, DateMilliHolder holder) {
-    BitVectorHelper.setValidityBitToOne(validityBuffer, index);
+    BitVectorHelper.setBit(validityBuffer, index);
     setValue(index, holder.value);
   }
 
@@ -259,18 +242,6 @@ public class DateMilliVector extends BaseFixedWidthVector {
   }
 
   /**
-   * Set the element at the given index to null.
-   *
-   * @param index   position of element
-   */
-  public void setNull(int index) {
-    handleSafe(index);
-    // not really needed to set the bit to 0 as long as
-    // the buffer always starts from 0.
-    BitVectorHelper.setValidityBit(validityBuffer, index, 0);
-  }
-
-  /**
    * Store the given value at a particular position in the vector. isSet indicates
    * whether the value is NULL or not.
    *
@@ -282,7 +253,7 @@ public class DateMilliVector extends BaseFixedWidthVector {
     if (isSet > 0) {
       set(index, value);
     } else {
-      BitVectorHelper.setValidityBit(validityBuffer, index, 0);
+      BitVectorHelper.unsetBit(validityBuffer, index);
     }
   }
 
@@ -311,7 +282,7 @@ public class DateMilliVector extends BaseFixedWidthVector {
    * @return value stored at the index.
    */
   public static long get(final ArrowBuf buffer, final int index) {
-    return buffer.getLong(index * TYPE_WIDTH);
+    return buffer.getLong((long) index * TYPE_WIDTH);
   }
 
 
@@ -323,7 +294,7 @@ public class DateMilliVector extends BaseFixedWidthVector {
 
 
   /**
-   * Construct a TransferPair comprising of this and and a target vector of
+   * Construct a TransferPair comprising of this and a target vector of
    * the same type.
    *
    * @param ref name of the target vector

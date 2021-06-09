@@ -20,8 +20,11 @@ package org.apache.arrow.vector.util;
 import siren.io.netty.buffer.ArrowBuf;
 
 /**
- * Utility methods for memory comparison at a byte level.
+ * Helper class for comparing byte buffers.
+ *
+ * @deprecated This class will be removed. Please use org.apache.arrow.memory.util.ByteFunctionHelpers instead.
  */
+@Deprecated
 public class ByteFunctionHelpers {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ByteFunctionHelpers.class);
 
@@ -57,12 +60,12 @@ public class ByteFunctionHelpers {
    */
   @Deprecated
   public static final int compare(
-      final ArrowBuf left,
-      int lStart,
-      int lEnd,
-      final ArrowBuf right,
-      int rStart,
-      int rEnd) {
+          final ArrowBuf left,
+          int lStart,
+          int lEnd,
+          final ArrowBuf right,
+          int rStart,
+          int rEnd) {
     return org.apache.arrow.memory.util.ByteFunctionHelpers.compare(left, lStart, lEnd, right, rStart, rEnd);
   }
 
@@ -79,15 +82,14 @@ public class ByteFunctionHelpers {
    */
   @Deprecated
   public static final int compare(
-      final ArrowBuf left,
-      int lStart,
-      int lEnd,
-      final byte[] right,
-      int rStart,
-      final int rEnd) {
+          final ArrowBuf left,
+          int lStart,
+          int lEnd,
+          final byte[] right,
+          int rStart,
+          final int rEnd) {
     return org.apache.arrow.memory.util.ByteFunctionHelpers.compare(left, lStart, lEnd, right, rStart, rEnd);
   }
-
 
   /**
    * Compares the two specified {@code long} values, treating them as unsigned values between
@@ -107,5 +109,4 @@ public class ByteFunctionHelpers {
   public static int unsignedIntCompare(int a, int b) {
     return org.apache.arrow.memory.util.ByteFunctionHelpers.unsignedIntCompare(a, b);
   }
-
 }
