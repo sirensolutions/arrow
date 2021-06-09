@@ -17,19 +17,11 @@
 
 package org.apache.arrow.vector;
 
-import static org.apache.arrow.vector.complex.BaseRepeatedValueVector.DATA_VECTOR_NAME;
-
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.util.ArrowBufPointer;
 import org.apache.arrow.memory.util.hash.ArrowBufHasher;
 import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.TransferPair;
-
-import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * A zero length vector of any type.
