@@ -121,7 +121,6 @@ groups:
   ######################## Tasks to run regularly #############################
 
   nightly:
-    - centos-*
     - debian-*
     - ubuntu-*
     - centos-*
@@ -370,20 +369,6 @@ tasks:
     artifacts:
       - arrow-cpp-{no_rc_version}-py38(h[a-z0-9]+)_0_cpu.tar.bz2
       - pyarrow-{no_rc_version}-py38(h[a-z0-9]+)_0_cpu.tar.bz2
-
-  wheel-manylinux2014-cp35m:
-    ci: azure
-    template: python-wheels/azure.linux.yml
-    params:
-      python_version: 3.5
-      unicode_width: 16
-      wheel_tag: manylinux2014
-      wheel_dir: manylinux201x
-      test_docker_images:
-        - python:3.5
-      test_remove_system_libs: true
-    artifacts:
-      - pyarrow-{no_rc_version}-cp35-cp35m-manylinux2014_x86_64.whl
 
 {% for python_version, python_tag, abi_tag in [("3.6", "cp36", "cp36m"),
                                                ("3.7", "cp37", "cp37m"),
@@ -713,7 +698,6 @@ tasks:
     ci: github
     template: linux-packages/github.linux.amd64.yml
     params:
-      build_task: "apt:build"
       target: "ubuntu-bionic"
       task_namespace: "apt"
       env:
@@ -777,7 +761,6 @@ tasks:
     ci: travis
     template: linux-packages/travis.linux.arm64.yml
     params:
-      build_task: "apt:build"
       target: "ubuntu-bionic-arm64"
       task_namespace: "apt"
       upload_extensions:
@@ -1006,10 +989,6 @@ tasks:
       - gir1.2-arrow-dataset-1.0_{no_rc_version}-1_[a-z0-9]+.deb
       - gir1.2-gandiva-1.0_{no_rc_version}-1_[a-z0-9]+.deb
       - gir1.2-parquet-1.0_{no_rc_version}-1_[a-z0-9]+.deb
-      - libarrow-dev_{no_rc_version}-1_[a-z0-9]+.deb
-      - libarrow-glib-dev_{no_rc_version}-1_[a-z0-9]+.deb
-      - libarrow-glib-doc_{no_rc_version}-1_[a-z0-9]+.deb
-      - libarrow-glib100_{no_rc_version}-1_[a-z0-9]+.deb
       - libarrow-dataset-dev_{no_rc_version}-1_[a-z0-9]+.deb
       - libarrow-dataset-glib-dev_{no_rc_version}-1_[a-z0-9]+.deb
       - libarrow-dataset-glib-doc_{no_rc_version}-1_[a-z0-9]+.deb
@@ -1039,7 +1018,6 @@ tasks:
     ci: github
     template: linux-packages/github.linux.amd64.yml
     params:
-      build_task: "yum:build"
       target: "centos-7"
       task_namespace: yum
       upload_extensions:
@@ -1073,46 +1051,10 @@ tasks:
       - plasma-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
       - plasma-store-server-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
 
-  centos-7-aarch64:
-    ci: travis
-    template: linux-packages/travis.linux.arm64.yml
-    params:
-      build_task: "yum:build"
-      target: "centos-7-aarch64"
-      upload_extensions:
-        - .rpm
-    artifacts:
-      - arrow-{no_rc_version}-1.el7.src.rpm
-      - arrow-dataset-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-dataset-glib-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-dataset-glib-doc-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-dataset-glib-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-dataset-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-debuginfo-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-glib-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-glib-doc-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-glib-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-python-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - arrow-python-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - parquet-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - parquet-glib-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - parquet-glib-doc-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - parquet-glib-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - parquet-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - plasma-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - plasma-glib-devel-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - plasma-glib-doc-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - plasma-glib-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - plasma-libs-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-      - plasma-store-server-{no_rc_version}-1.el7.[a-z0-9_]+.rpm
-
   centos-8-amd64:
     ci: github
     template: linux-packages/github.linux.amd64.yml
     params:
-      build_task: "yum:build"
       target: "centos-8"
       task_namespace: yum
       upload_extensions:
@@ -1172,7 +1114,6 @@ tasks:
     ci: travis
     template: linux-packages/travis.linux.arm64.yml
     params:
-      build_task: "yum:build"
       target: "centos-8-aarch64"
       task_namespace: yum
       upload_extensions:
@@ -1290,7 +1231,6 @@ tasks:
       env:
         TEST_DEFAULT: 0
       artifact: "wheels"
-      flag: ""
 
 {% for target in ["csharp",
                   "go",
@@ -1310,7 +1250,6 @@ tasks:
         TEST_DEFAULT: 0
         TEST_{{ target|upper }}: 1
       artifact: "source"
-      flag: "TEST_JAVA=1"
 
 {% endfor %}
 
@@ -1347,23 +1286,9 @@ tasks:
     ci: github
     template: docker-tests/github.linux.yml
     params:
-      run: conda-cpp-valgrind
-
-  test-debian-10-cpp:
-    ci: circle
-    template: docker-tests/circle.linux.yml
-    params:
       env:
         DEBIAN: 10
       run: debian-cpp
-
-  test-ubuntu-16.04-cpp:
-    ci: circle
-    template: docker-tests/circle.linux.yml
-    params:
-      env:
-        UBUNTU: 16.04
-      run: ubuntu-cpp
 
   test-ubuntu-18.04-cpp:
     ci: github
@@ -1396,12 +1321,6 @@ tasks:
       env:
         UBUNTU: 18.04
       run: "-e ARROW_BUILD_SHARED=OFF -e ARROW_BUILD_STATIC=ON -e ARROW_TEST_LINKAGE=static ubuntu-cpp"
-
-  test-ubuntu-18.04-cpp-cmake32:
-    ci: circle
-    template: docker-tests/circle.linux.yml
-    params:
-      run: ubuntu-cpp-cmake32
 
   test-ubuntu-20.04-cpp:
     ci: github
@@ -1507,7 +1426,6 @@ tasks:
       r_org: rhub
       r_image: ubuntu-gcc-release
       r_tag: latest
-      not_cran: "TRUE"
 
   test-r-rocker-r-base-latest:
     ci: azure
@@ -1516,7 +1434,6 @@ tasks:
       r_org: rocker
       r_image: r-base
       r_tag: latest
-      not_cran: "TRUE"
 
   test-r-rstudio-r-base-3.6-bionic:
     ci: azure
@@ -1525,7 +1442,6 @@ tasks:
       r_org: rstudio
       r_image: r-base
       r_tag: 3.6-bionic
-      not_cran: "TRUE"
 
   test-r-rstudio-r-base-3.6-centos8:
     ci: azure
@@ -1551,7 +1467,6 @@ tasks:
       r_org: rstudio
       r_image: r-base
       r_tag: 3.6-opensuse15
-      not_cran: "TRUE"
 
   test-r-rstudio-r-base-3.6-opensuse42:
     ci: azure
@@ -1560,7 +1475,6 @@ tasks:
       r_org: rstudio
       r_image: r-base
       r_tag: 3.6-opensuse42
-      not_cran: "TRUE"
 
   test-r-minimal-build:
     ci: azure
