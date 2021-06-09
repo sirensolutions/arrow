@@ -2324,7 +2324,7 @@ public class TestValueVector {
   @Test
   public void testGetPointerVariableWidth() {
     final String[] sampleData = new String[]{
-            "abc", "123", "def", null, "hello", "aaaaa", "world", "2019", null, "0717"};
+      "abc", "123", "def", null, "hello", "aaaaa", "world", "2019", null, "0717"};
 
     try (VarCharVector vec1 = new VarCharVector("vec1", allocator);
          VarCharVector vec2 = new VarCharVector("vec2", allocator)) {

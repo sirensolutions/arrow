@@ -198,11 +198,11 @@ public class TestUnionVector {
         final TransferPair transferPair = sourceVector.makeTransferPair(toVector);
 
         final int[][] transferLengths = {{0, 3},
-                {3, 1},
-                {4, 2},
-                {6, 1},
-                {7, 1},
-                {8, 2}
+          {3, 1},
+          {4, 2},
+          {6, 1},
+          {7, 1},
+          {8, 2}
         };
 
         for (final int[] transferLength : transferLengths) {
@@ -287,10 +287,10 @@ public class TestUnionVector {
         final TransferPair transferPair = sourceVector.makeTransferPair(toVector);
 
         final int[][] transferLengths = {{0, 2},
-                {2, 1},
-                {3, 2},
-                {5, 3},
-                {8, 2}
+          {2, 1},
+          {3, 2},
+          {5, 3},
+          {8, 2}
         };
 
         for (final int[] transferLength : transferLengths) {
