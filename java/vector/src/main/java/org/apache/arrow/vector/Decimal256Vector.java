@@ -22,7 +22,6 @@ import static org.apache.arrow.vector.NullCheckingForGet.NULL_CHECKING_ENABLED;
 import java.math.BigDecimal;
 import java.nio.ByteOrder;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.complex.impl.Decimal256ReaderImpl;
 import org.apache.arrow.vector.complex.reader.FieldReader;
@@ -35,7 +34,8 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.DecimalUtility;
 import org.apache.arrow.vector.util.TransferPair;
 
-import io.netty.util.internal.PlatformDependent;
+import siren.io.netty.util.internal.PlatformDependent;
+import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * Decimal256Vector implements a fixed width vector (32 bytes) of
