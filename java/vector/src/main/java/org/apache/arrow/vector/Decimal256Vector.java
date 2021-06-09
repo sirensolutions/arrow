@@ -34,8 +34,8 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.util.DecimalUtility;
 import org.apache.arrow.vector.util.TransferPair;
 
-import siren.io.netty.util.internal.PlatformDependent;
 import siren.io.netty.buffer.ArrowBuf;
+import siren.io.netty.util.internal.PlatformDependent;
 
 /**
  * Decimal256Vector implements a fixed width vector (32 bytes) of
