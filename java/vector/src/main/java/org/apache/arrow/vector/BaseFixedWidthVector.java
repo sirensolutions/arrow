@@ -320,8 +320,8 @@ public abstract class BaseFixedWidthVector extends BaseValueVector
     final long size = computeCombinedBufferSize(valueCount, typeWidth);
     if (size > MAX_ALLOCATION_SIZE) {
       throw new OversizedAllocationException("Memory required for vector capacity " +
-              valueCount +
-              " is (" + size + "), which is more than max allowed (" + MAX_ALLOCATION_SIZE + ")");
+          valueCount +
+          " is (" + size + "), which is more than max allowed (" + MAX_ALLOCATION_SIZE + ")");
     }
     return size;
   }

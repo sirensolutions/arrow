@@ -17,6 +17,8 @@
 
 package org.apache.arrow.vector;
 
+import static org.apache.arrow.memory.util.LargeMemoryUtil.capAtMaxInt;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -424,7 +426,7 @@ public abstract class BaseVariableWidthVector extends BaseValueVector
   private void checkDataBufferSize(long size) {
     if (size > MAX_ALLOCATION_SIZE || size < 0) {
       throw new OversizedAllocationException("Memory required for vector " +
-              " is (" + size + "), which is more than max allowed (" + MAX_ALLOCATION_SIZE + ")");
+          " is (" + size + "), which is more than max allowed (" + MAX_ALLOCATION_SIZE + ")");
     }
   }
 
@@ -439,8 +441,8 @@ public abstract class BaseVariableWidthVector extends BaseValueVector
     final long size = computeCombinedBufferSize(valueCount + 1, OFFSET_WIDTH);
     if (size > MAX_ALLOCATION_SIZE) {
       throw new OversizedAllocationException("Memory required for vector capacity " +
-              valueCount +
-              " is (" + size + "), which is more than max allowed (" + MAX_ALLOCATION_SIZE + ")");
+          valueCount +
+          " is (" + size + "), which is more than max allowed (" + MAX_ALLOCATION_SIZE + ")");
     }
     return size;
   }
@@ -801,9 +803,9 @@ public abstract class BaseVariableWidthVector extends BaseValueVector
      */
     if ((firstByteSource + byteSizeTarget - 1) < lastByteSource) {
       byte b1 = BitVectorHelper.getBitsFromCurrentByte(this.validityBuffer,
-              firstByteSource + byteSizeTarget - 1, offset);
+          firstByteSource + byteSizeTarget - 1, offset);
       byte b2 = BitVectorHelper.getBitsFromNextByte(this.validityBuffer,
-              firstByteSource + byteSizeTarget, offset);
+          firstByteSource + byteSizeTarget, offset);
 
       target.validityBuffer.setByte(byteSizeTarget - 1, b1 + b2);
     } else {
