@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.flatbuffers.FlatBufferBuilder;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * Wrapper around a WritableByteChannel that maintains the position as well adding

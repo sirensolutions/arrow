@@ -57,7 +57,7 @@ import org.apache.arrow.vector.util.JsonStringArrayList;
 import org.apache.arrow.vector.util.OversizedAllocationException;
 import org.apache.arrow.vector.util.TransferPair;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * A list vector contains lists of a specific type of elements.  Its structure contains 3 elements.

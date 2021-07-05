@@ -74,7 +74,7 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.MappingJsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * A reader for JSON files that translates them into vectors. This reader is used for integration tests.

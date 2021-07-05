@@ -17,7 +17,7 @@
 
 package org.apache.arrow.vector.util;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * Helper class for comparing byte buffers.

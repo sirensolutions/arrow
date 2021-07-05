@@ -44,7 +44,7 @@ import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.OversizedAllocationException;
 import org.apache.arrow.vector.util.TransferPair;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * A Struct vector consists of nullability/validity buffer and children vectors

@@ -44,7 +44,7 @@ import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.OversizedAllocationException;
 import org.apache.arrow.vector.util.SchemaChangeRuntimeException;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /** Base class for Vectors that contain repeated values. */
 public abstract class BaseRepeatedValueVector extends BaseValueVector implements RepeatedValueVector, BaseListVector {

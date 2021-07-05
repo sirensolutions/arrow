@@ -23,7 +23,7 @@ import org.apache.arrow.flatbuf.Message;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.ipc.ReadChannel;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * Reads a sequence of messages using a ReadChannel.

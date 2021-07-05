@@ -21,11 +21,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.junit.Test;
 
-import siren.io.netty.buffer.ArrowBuf;
 import siren.io.netty.util.internal.PlatformDependent;
 
 public class TestBitVectorHelper {

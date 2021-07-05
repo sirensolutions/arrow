@@ -19,7 +19,7 @@ package org.apache.arrow.vector;
 
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * Content is backed by a buffer and can be loaded/unloaded.

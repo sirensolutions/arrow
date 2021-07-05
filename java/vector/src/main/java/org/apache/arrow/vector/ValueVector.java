@@ -19,6 +19,7 @@ package org.apache.arrow.vector;
 
 import java.io.Closeable;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.memory.util.hash.ArrowBufHasher;
@@ -28,8 +29,6 @@ import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.TransferPair;
-
-import siren.io.netty.buffer.ArrowBuf;
 
 /**
  * An abstraction that is used to store a sequence of values in an individual column.

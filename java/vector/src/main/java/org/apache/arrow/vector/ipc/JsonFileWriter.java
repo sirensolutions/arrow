@@ -79,7 +79,7 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter.NopIndenter;
 import com.fasterxml.jackson.databind.MappingJsonFactory;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * A writer that converts binary Vectors into a JSON format suitable

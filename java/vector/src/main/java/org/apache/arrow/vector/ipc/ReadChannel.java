@@ -24,7 +24,7 @@ import java.nio.channels.ReadableByteChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * Adapter around {@link ReadableByteChannel} that reads into {@linkplain ArrowBuf}s.

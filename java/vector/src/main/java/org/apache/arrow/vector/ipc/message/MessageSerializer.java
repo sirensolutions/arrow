@@ -40,7 +40,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 
 import com.google.flatbuffers.FlatBufferBuilder;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * Utility class for serializing Messages. Messages are all serialized a similar way.

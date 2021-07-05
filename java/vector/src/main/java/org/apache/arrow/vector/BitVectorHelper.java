@@ -28,7 +28,6 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.util.DataSizeRoundingUtil;
 
-import siren.io.netty.buffer.ArrowBuf;
 import siren.io.netty.util.internal.PlatformDependent;
 
 /**

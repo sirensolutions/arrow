@@ -33,7 +33,7 @@ import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.PromotableMultiMapWithOrdinal;
 import org.apache.arrow.vector.util.ValueVectorUtility;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * Base class for StructVectors. Currently used by NonNullableStructVector

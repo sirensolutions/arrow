@@ -77,7 +77,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 public class TestComplexWriter {
 

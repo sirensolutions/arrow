@@ -37,7 +37,7 @@ import org.apache.arrow.vector.types.pojo.DictionaryEncoding;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.validate.MetadataV4UnionChecker;
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * This class reads from an input stream and produces ArrowRecordBatches.

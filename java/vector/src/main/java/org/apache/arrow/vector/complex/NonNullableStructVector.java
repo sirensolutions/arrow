@@ -45,7 +45,7 @@ import org.apache.arrow.vector.util.JsonStringHashMap;
 import org.apache.arrow.vector.util.TransferPair;
 
 
-import siren.io.netty.buffer.ArrowBuf;
+import org.apache.arrow.memory.ArrowBuf;
 
 /**
  * A struct vector that has no null values (and no validity buffer).
