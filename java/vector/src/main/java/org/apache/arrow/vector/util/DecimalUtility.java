@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import org.apache.arrow.memory.ArrowBuf;
+
 import siren.io.netty.util.internal.PlatformDependent;
 
 /**

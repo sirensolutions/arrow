@@ -18,7 +18,6 @@
 package org.apache.arrow.vector.ipc.message;
 
 import org.apache.arrow.flatbuf.Message;
-
 import org.apache.arrow.memory.ArrowBuf;
 
 /**
