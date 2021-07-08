@@ -22,8 +22,8 @@ import java.io.InputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.flatbuf.MessageHeader;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.compression.CompressionCodec;

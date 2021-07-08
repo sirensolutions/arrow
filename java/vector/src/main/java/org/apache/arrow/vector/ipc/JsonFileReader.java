@@ -80,6 +80,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * <p>This class uses a streaming parser API, method naming tends to reflect this implementation
  * detail.
  */
+
 public class JsonFileReader implements AutoCloseable, DictionaryProvider {
   private final JsonParser parser;
   private final BufferAllocator allocator;
