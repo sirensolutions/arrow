@@ -17,6 +17,7 @@
 
 package org.apache.arrow.vector.complex;
 
+import static org.apache.arrow.memory.util.LargeMemoryUtil.checkedCastToInt;
 import static org.apache.arrow.util.Preconditions.checkNotNull;
 
 import java.util.ArrayList;
