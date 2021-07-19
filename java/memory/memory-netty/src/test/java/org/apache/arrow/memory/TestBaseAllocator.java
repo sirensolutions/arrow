@@ -362,7 +362,6 @@ public class TestBaseAllocator {
     assertEquals("The segment size must be a power of 2", e.getMessage());
   }
 
-  @Ignore
   @Test
   public void testCustomizedAllocationManager() {
     try (BaseAllocator allocator = createAllocatorWithCustomizedAllocationManager()) {
