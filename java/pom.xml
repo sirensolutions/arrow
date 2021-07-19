@@ -20,7 +20,7 @@
 
   <groupId>org.apache.arrow</groupId>
   <artifactId>arrow-java-root</artifactId>
-  <version>4.0.0</version>
+  <version>siren-4.0.0-1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Apache Arrow Java Root POM</name>
@@ -33,7 +33,7 @@
     <dep.junit.jupiter.version>5.4.0</dep.junit.jupiter.version>
     <dep.slf4j.version>1.7.25</dep.slf4j.version>
     <dep.guava.version>20.0</dep.guava.version>
-    <dep.netty.version>4.1.48.Final</dep.netty.version>
+    <dep.netty.version>siren-4.1.48-1-SNAPSHOT</dep.netty.version>
     <dep.jackson.version>2.11.4</dep.jackson.version>
     <dep.hadoop.version>2.7.1</dep.hadoop.version>
     <dep.fbs.version>1.12.0</dep.fbs.version>
@@ -123,6 +123,7 @@
             <exclude>**/*.proto</exclude>
             <exclude>**/*.fmpp</exclude>
             <exclude>**/target/**</exclude>
+            <exclude>**/*.iml</exclude>
             <exclude>**/*.tdd</exclude>
             <exclude>**/*.project</exclude>
             <exclude>**/TAGS</exclude>
@@ -136,7 +137,6 @@
             <exclude>**/*.linux</exclude>
             <exclude>**/client/build/**</exclude>
             <exclude>**/*.tbl</exclude>
-            <exclude>**/*.iml</exclude>
           </excludes>
         </configuration>
       </plugin>
@@ -612,6 +612,13 @@
       <artifactId>mockito-junit-jupiter</artifactId>
       <version>2.25.1</version>
       <scope>test</scope>
+      <!-- Mockito  contains old Hamcrest classes, causes issues with JUNIT -->
+      <exclusions>
+        <exclusion>
+          <groupId>org.hamcrest</groupId>
+          <artifactId>hamcrest-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
@@ -657,15 +664,12 @@
     <module>format</module>
     <module>memory</module>
     <module>vector</module>
-    <module>tools</module>
-    <module>adapter/jdbc</module>
-    <module>plasma</module>
-    <module>flight/flight-core</module>
-    <module>flight/flight-grpc</module>
-    <module>performance</module>
-    <module>algorithm</module>
-    <module>adapter/avro</module>
-    <module>compression</module>
+    <!--<module>tools</module>-->
+    <!--<module>adapter/jdbc</module>-->
+    <!--<module>plasma</module>-->
+    <!--<module>flight</module>-->
+    <!--<module>performance</module>-->
+    <!--<module>algorithm</module>-->
   </modules>
 
   <profiles>
@@ -691,72 +695,22 @@
       </modules>
     </profile>
 
+    <!-- To deploy to Siren artifactory -->
     <profile>
-      <!-- Use the version of arrow-vector that shades flatbuffers and packages format -->
-      <id>shade-flatbuffers</id>
-      <properties>
-       <arrow.vector.classifier>shade-format-flatbuffers</arrow.vector.classifier>
-      </properties>
-    </profile>
+      <id>artifactory</id>
 
-    <profile>
-      <id>error-prone</id>
-      <!--
-           Do not activate Error Prone while running with Eclipse/M2E as it causes incompatibilities
-           with other annotation processors.
-           See https://github.com/jbosstools/m2e-apt/issues/62 for details
-      -->
-      <activation>
-        <property>
-           <name>!m2e.version</name>
-        </property>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <configuration>
-              <compilerArgs combine.children="append">
-                <arg>-XDcompilePolicy=simple</arg>
-                <arg>-Xplugin:ErrorProne</arg>
-              </compilerArgs>
-              <annotationProcessorPaths combine.children="append">
-                <path>
-                  <groupId>com.google.errorprone</groupId>
-                  <artifactId>error_prone_core</artifactId>
-                  <version>2.4.0</version>
-                </path>
-              </annotationProcessorPaths>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-
-    <profile>
-      <id>error-prone-jdk8</id>
-      <!-- using github.com/google/error-prone-javac is required when running on JDK 8 -->
-      <activation>
-        <jdk>1.8</jdk>
-        <property>
-           <name>!m2e.version</name>
-        </property>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <configuration>
-              <fork>true</fork>
-              <compilerArgs combine.children="append">
-                <arg>-J-Xbootclasspath/p:${settings.localRepository}/com/google/errorprone/javac/${errorprone.javac.version}/javac-${errorprone.javac.version}.jar</arg>
-              </compilerArgs>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
+      <distributionManagement>
+        <repository>
+          <id>artifactory-releases</id>
+          <name>artifactory-releases</name>
+          <url>${artifactory.url}/libs-release-local</url>
+        </repository>
+        <snapshotRepository>
+          <id>artifactory-snapshots</id>
+          <name>artifactory-snapshots</name>
+          <url>${artifactory.url}/libs-snapshot-local</url>
+        </snapshotRepository>
+      </distributionManagement>
     </profile>
 
   </profiles>

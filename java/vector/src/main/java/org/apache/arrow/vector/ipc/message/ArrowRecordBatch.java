@@ -59,13 +59,13 @@ public class ArrowRecordBatch implements ArrowMessage {
   private boolean closed = false;
 
   public ArrowRecordBatch(
-      int length, List<ArrowFieldNode> nodes, List<ArrowBuf> buffers) {
+          int length, List<ArrowFieldNode> nodes, List<ArrowBuf> buffers) {
     this(length, nodes, buffers, NoCompressionCodec.DEFAULT_BODY_COMPRESSION, true);
   }
 
   public ArrowRecordBatch(
-      int length, List<ArrowFieldNode> nodes, List<ArrowBuf> buffers,
-      ArrowBodyCompression bodyCompression) {
+          int length, List<ArrowFieldNode> nodes, List<ArrowBuf> buffers,
+          ArrowBodyCompression bodyCompression) {
     this(length, nodes, buffers, bodyCompression, true);
   }
 
@@ -78,8 +78,8 @@ public class ArrowRecordBatch implements ArrowMessage {
    * @param bodyCompression compression info.
    */
   public ArrowRecordBatch(
-      int length, List<ArrowFieldNode> nodes, List<ArrowBuf> buffers,
-      ArrowBodyCompression bodyCompression, boolean alignBuffers) {
+          int length, List<ArrowFieldNode> nodes, List<ArrowBuf> buffers,
+          ArrowBodyCompression bodyCompression, boolean alignBuffers) {
     super();
     this.length = length;
     this.nodes = nodes;
@@ -108,8 +108,8 @@ public class ArrowRecordBatch implements ArrowMessage {
   // <code>retain</code> method is not called, so the first <code>dummy</code> parameter is used
   // to distinguish this from the public constructor.
   private ArrowRecordBatch(
-      boolean dummy, int length, List<ArrowFieldNode> nodes,
-      List<ArrowBuf> buffers, ArrowBodyCompression bodyCompression) {
+          boolean dummy, int length, List<ArrowFieldNode> nodes,
+          List<ArrowBuf> buffers, ArrowBodyCompression bodyCompression) {
     this.length = length;
     this.nodes = nodes;
     this.buffers = buffers;
@@ -169,11 +169,11 @@ public class ArrowRecordBatch implements ArrowMessage {
    */
   public ArrowRecordBatch cloneWithTransfer(final BufferAllocator allocator) {
     final List<ArrowBuf> newBufs = buffers.stream()
-        .map(buf ->
-          (buf.getReferenceManager().transferOwnership(buf, allocator)
-            .getTransferredBuffer())
-            .writerIndex(buf.writerIndex()))
-        .collect(Collectors.toList());
+            .map(buf ->
+                    (buf.getReferenceManager().transferOwnership(buf, allocator)
+                            .getTransferredBuffer())
+                            .writerIndex(buf.writerIndex()))
+            .collect(Collectors.toList());
     close();
     return new ArrowRecordBatch(false, length, nodes, newBufs, bodyCompression);
   }
@@ -228,7 +228,7 @@ public class ArrowRecordBatch implements ArrowMessage {
   @Override
   public String toString() {
     return "ArrowRecordBatch [length=" + length + ", nodes=" + nodes + ", #buffers=" + buffers.size() +
-      ", buffersLayout=" + buffersLayout + ", closed=" + closed + "]";
+            ", buffersLayout=" + buffersLayout + ", closed=" + closed + "]";
   }
 
   /**
@@ -242,7 +242,7 @@ public class ArrowRecordBatch implements ArrowMessage {
     List<ArrowBuffer> buffersLayout = getBuffersLayout();
     if (buffers.size() != buffersLayout.size()) {
       throw new IllegalStateException("the layout does not match: " +
-          buffers.size() + " != " + buffersLayout.size());
+              buffers.size() + " != " + buffersLayout.size());
     }
 
     for (int i = 0; i < buffers.size(); i++) {

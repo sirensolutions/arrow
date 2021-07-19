@@ -74,13 +74,13 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.MappingJsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 /**
  * A reader for JSON files that translates them into vectors. This reader is used for integration tests.
  *
  * <p>This class uses a streaming parser API, method naming tends to reflect this implementation
  * detail.
  */
+
 public class JsonFileReader implements AutoCloseable, DictionaryProvider {
   private final JsonParser parser;
   private final BufferAllocator allocator;

@@ -77,10 +77,10 @@ public class NonNullableStructVector extends AbstractStructVector {
                                  FieldType fieldType,
                                  CallBack callBack) {
     super(name,
-        allocator,
-        callBack,
-        null,
-        true);
+            allocator,
+            callBack,
+            null,
+            true);
     this.fieldType = checkNotNull(fieldType);
     this.valueCount = 0;
   }
@@ -207,11 +207,11 @@ public class NonNullableStructVector extends AbstractStructVector {
   @Override
   public TransferPair getTransferPair(String ref, BufferAllocator allocator, CallBack callBack) {
     return new StructTransferPair(this, new NonNullableStructVector(name,
-        allocator,
-        fieldType,
-        callBack,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+            allocator,
+            fieldType,
+            callBack,
+            getConflictPolicy(),
+            allowConflictPolicyChanges), false);
   }
 
   @Override
@@ -222,11 +222,11 @@ public class NonNullableStructVector extends AbstractStructVector {
   @Override
   public TransferPair getTransferPair(String ref, BufferAllocator allocator) {
     return new StructTransferPair(this, new NonNullableStructVector(ref,
-        allocator,
-        fieldType,
-        callBack,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+            allocator,
+            fieldType,
+            callBack,
+            getConflictPolicy(),
+            allowConflictPolicyChanges), false);
   }
 
   /**
@@ -309,9 +309,9 @@ public class NonNullableStructVector extends AbstractStructVector {
     }
 
     return getChildren().stream()
-        .mapToInt(child -> child.getValueCapacity())
-        .min()
-        .getAsInt();
+            .mapToInt(child -> child.getValueCapacity())
+            .min()
+            .getAsInt();
   }
 
   @Override

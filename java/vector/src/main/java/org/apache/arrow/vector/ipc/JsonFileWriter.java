@@ -162,7 +162,7 @@ public class JsonFileWriter implements AutoCloseable {
   }
 
   private void writeDictionaryBatches(JsonGenerator generator, Set<Long> dictionaryIdsUsed, DictionaryProvider provider)
-      throws IOException {
+          throws IOException {
     generator.writeArrayFieldStart("dictionaries");
     for (Long id : dictionaryIdsUsed) {
       generator.writeStartObject();
@@ -208,7 +208,7 @@ public class JsonFileWriter implements AutoCloseable {
     List<ArrowBuf> vectorBuffers = vector.getFieldBuffers();
     if (vectorTypes.size() != vectorBuffers.size()) {
       throw new IllegalArgumentException("vector types and inner vector buffers are not the same size: " +
-        vectorTypes.size() + " != " + vectorBuffers.size());
+              vectorTypes.size() + " != " + vectorBuffers.size());
     }
     generator.writeStartObject();
     {
@@ -221,13 +221,13 @@ public class JsonFileWriter implements AutoCloseable {
         ArrowBuf vectorBuffer = vectorBuffers.get(v);
         generator.writeArrayFieldStart(bufferType.getName());
         final int bufferValueCount = (bufferType.equals(OFFSET) && vector.getMinorType() != MinorType.DENSEUNION) ?
-            valueCount + 1 : valueCount;
+                valueCount + 1 : valueCount;
         for (int i = 0; i < bufferValueCount; i++) {
           if (bufferType.equals(DATA) && (vector.getMinorType() == MinorType.VARCHAR ||
                   vector.getMinorType() == MinorType.VARBINARY)) {
             writeValueToGenerator(bufferType, vectorBuffer, vectorBuffers.get(v - 1), vector, i);
           } else if (bufferType.equals(OFFSET) && vector.getValueCount() == 0 &&
-              (vector.getMinorType() == MinorType.VARBINARY || vector.getMinorType() == MinorType.VARCHAR)) {
+                  (vector.getMinorType() == MinorType.VARBINARY || vector.getMinorType() == MinorType.VARCHAR)) {
             ArrowBuf vectorBufferTmp = vector.getAllocator().buffer(4);
             vectorBufferTmp.setInt(0, 0);
             writeValueToGenerator(bufferType, vectorBufferTmp, null, vector, i);
@@ -242,7 +242,7 @@ public class JsonFileWriter implements AutoCloseable {
       List<FieldVector> children = vector.getChildrenFromFields();
       if (fields.size() != children.size()) {
         throw new IllegalArgumentException("fields and children are not the same size: " + fields.size() + " != " +
-          children.size());
+                children.size());
       }
       if (fields.size() > 0) {
         generator.writeArrayFieldStart("children");
@@ -361,7 +361,7 @@ public class JsonFileWriter implements AutoCloseable {
         case VARBINARY: {
           Preconditions.checkNotNull(offsetBuffer);
           String hexString = Hex.encodeHexString(BaseVariableWidthVector.get(buffer,
-              offsetBuffer, index));
+                  offsetBuffer, index));
           generator.writeObject(hexString);
           break;
         }
@@ -378,16 +378,16 @@ public class JsonFileWriter implements AutoCloseable {
         }
         case DECIMAL: {
           int scale = ((DecimalVector) vector).getScale();
-          BigDecimal decimalValue = DecimalUtility.getBigDecimalFromArrowBuf(buffer, index, scale, 
-                                                                             DecimalVector.TYPE_WIDTH);
+          BigDecimal decimalValue = DecimalUtility.getBigDecimalFromArrowBuf(buffer, index, scale,
+                  DecimalVector.TYPE_WIDTH);
           // We write the unscaled value, because the scale is stored in the type metadata.
           generator.writeString(decimalValue.unscaledValue().toString());
           break;
         }
         case DECIMAL256: {
           int scale = ((Decimal256Vector) vector).getScale();
-          BigDecimal decimalValue = DecimalUtility.getBigDecimalFromArrowBuf(buffer, index, scale, 
-                                                                             Decimal256Vector.TYPE_WIDTH);
+          BigDecimal decimalValue = DecimalUtility.getBigDecimalFromArrowBuf(buffer, index, scale,
+                  Decimal256Vector.TYPE_WIDTH);
           // We write the unscaled value, because the scale is stored in the type metadata.
           generator.writeString(decimalValue.unscaledValue().toString());
           break;

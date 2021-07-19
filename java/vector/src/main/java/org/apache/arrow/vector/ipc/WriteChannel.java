@@ -131,7 +131,7 @@ public class WriteChannel implements AutoCloseable {
     while (bytesWritten < buffer.readableBytes()) {
       int bytesToWrite = (int) Math.min(Integer.MAX_VALUE, buffer.readableBytes() - bytesWritten);
       ByteBuffer nioBuffer = buffer.nioBuffer(buffer.readerIndex() + bytesWritten,
-           bytesToWrite);
+              bytesToWrite);
       write(nioBuffer);
       bytesWritten += bytesToWrite;
     }

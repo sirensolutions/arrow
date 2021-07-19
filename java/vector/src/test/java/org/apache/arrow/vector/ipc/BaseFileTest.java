@@ -113,8 +113,8 @@ public class BaseFileTest {
   private static char [] uint2Values = new char[]{0, Character.MAX_VALUE, 1, Short.MAX_VALUE * 2, 2};
   private static long [] uint4Values = new long[]{0, Integer.MAX_VALUE + 1L, 1, Integer.MAX_VALUE * 2L, 2};
   private static BigInteger[] uint8Values = new BigInteger[]{BigInteger.valueOf(0),
-      BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(2)), BigInteger.valueOf(2),
-      BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(1)), BigInteger.valueOf(2)};
+          BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(2)), BigInteger.valueOf(2),
+          BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(1)), BigInteger.valueOf(2)};
 
   protected void writeData(int count, StructVector parent) {
     ComplexWriter writer = new ComplexWriterImpl("root", parent);
@@ -152,13 +152,13 @@ public class BaseFileTest {
     for (int i = 0; i < count; i++) {
       Assert.assertEquals(i, root.getVector("int").getObject(i));
       Assert.assertEquals((Short) uint1Values[i % uint1Values.length],
-          ((UInt1Vector) root.getVector("uint1")).getObjectNoOverflow(i));
+              ((UInt1Vector) root.getVector("uint1")).getObjectNoOverflow(i));
       Assert.assertEquals("Failed for index: " + i, (Character) uint2Values[i % uint2Values.length],
-          (Character) ((UInt2Vector) root.getVector("uint2")).get(i));
+              (Character) ((UInt2Vector) root.getVector("uint2")).get(i));
       Assert.assertEquals("Failed for index: " + i, (Long) uint4Values[i % uint4Values.length],
-          ((UInt4Vector) root.getVector("uint4")).getObjectNoOverflow(i));
+              ((UInt4Vector) root.getVector("uint4")).getObjectNoOverflow(i));
       Assert.assertEquals("Failed for index: " + i, uint8Values[i % uint8Values.length],
-          ((UInt8Vector) root.getVector("uint8")).getObjectNoOverflow(i));
+              ((UInt8Vector) root.getVector("uint8")).getObjectNoOverflow(i));
       Assert.assertEquals(Long.valueOf(i), root.getVector("bigInt").getObject(i));
       Assert.assertEquals(i == 0 ? Float.NaN : i, root.getVector("float").getObject(i));
     }
@@ -288,8 +288,8 @@ public class BaseFileTest {
   }
 
   protected VectorSchemaRoot writeFlatDictionaryData(
-      BufferAllocator bufferAllocator,
-      DictionaryProvider.MapDictionaryProvider provider) {
+          BufferAllocator bufferAllocator,
+          DictionaryProvider.MapDictionaryProvider provider) {
 
     // Define dictionaries and add to provider
     VarCharVector dictionary1Vector = newVarCharVector("D1", bufferAllocator);
@@ -347,7 +347,7 @@ public class BaseFileTest {
     vector2.close(); // Done with this vector after encoding
 
     List<Field> fields = Arrays.asList(encodedVector1A.getField(), encodedVector1B.getField(),
-        encodedVector2.getField());
+            encodedVector2.getField());
     List<FieldVector> vectors = Collections2.asImmutableList(encodedVector1A, encodedVector1B, encodedVector2);
 
     return new VectorSchemaRoot(fields, vectors, encodedVector1A.getValueCount());
@@ -418,8 +418,8 @@ public class BaseFileTest {
   }
 
   protected VectorSchemaRoot writeNestedDictionaryData(
-      BufferAllocator bufferAllocator,
-      DictionaryProvider.MapDictionaryProvider provider) {
+          BufferAllocator bufferAllocator,
+          DictionaryProvider.MapDictionaryProvider provider) {
 
     // Define the dictionary and add to the provider
     VarCharVector dictionaryVector = newVarCharVector("D2", bufferAllocator);
@@ -499,7 +499,7 @@ public class BaseFileTest {
     decimalVector3.setValueCount(count);
 
     List<Field> fields = Collections2.asImmutableList(decimalVector1.getField(), decimalVector2.getField(),
-        decimalVector3.getField());
+            decimalVector3.getField());
     List<FieldVector> vectors = Collections2.asImmutableList(decimalVector1, decimalVector2, decimalVector3);
     return new VectorSchemaRoot(fields, vectors, count);
   }

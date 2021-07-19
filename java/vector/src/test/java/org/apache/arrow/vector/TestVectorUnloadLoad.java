@@ -277,13 +277,13 @@ public class TestVectorUnloadLoad {
   public void testUnloadLoadDuplicates() throws IOException {
     int count = 10;
     Schema schema = new Schema(asList(
-        new Field("duplicate", FieldType.nullable(new ArrowType.Int(32, true)), Collections.<Field>emptyList()),
-        new Field("duplicate", FieldType.nullable(new ArrowType.Int(32, true)), Collections.<Field>emptyList())
+            new Field("duplicate", FieldType.nullable(new ArrowType.Int(32, true)), Collections.<Field>emptyList()),
+            new Field("duplicate", FieldType.nullable(new ArrowType.Int(32, true)), Collections.<Field>emptyList())
     ));
 
     try (
-        BufferAllocator originalVectorsAllocator =
-            allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
+            BufferAllocator originalVectorsAllocator =
+                    allocator.newChildAllocator("original vectors", 0, Integer.MAX_VALUE);
     ) {
       List<FieldVector> sources = new ArrayList<>();
       for (Field field : schema.getFields()) {
@@ -301,7 +301,7 @@ public class TestVectorUnloadLoad {
         VectorUnloader vectorUnloader = new VectorUnloader(root);
         try (ArrowRecordBatch recordBatch = vectorUnloader.getRecordBatch();
              BufferAllocator finalVectorsAllocator =
-                allocator.newChildAllocator("final vectors", 0, Integer.MAX_VALUE);
+                     allocator.newChildAllocator("final vectors", 0, Integer.MAX_VALUE);
              VectorSchemaRoot newRoot = VectorSchemaRoot.create(schema, finalVectorsAllocator);) {
           // load it
           VectorLoader vectorLoader = new VectorLoader(newRoot);

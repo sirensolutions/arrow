@@ -197,11 +197,11 @@ public class TestUnionVector {
         final TransferPair transferPair = sourceVector.makeTransferPair(toVector);
 
         final int[][] transferLengths = {{0, 3},
-            {3, 1},
-            {4, 2},
-            {6, 1},
-            {7, 1},
-            {8, 2}
+          {3, 1},
+          {4, 2},
+          {6, 1},
+          {7, 1},
+          {8, 2}
         };
 
         for (final int[] transferLength : transferLengths) {
@@ -213,7 +213,7 @@ public class TestUnionVector {
           /* check the toVector output after doing the splitAndTransfer */
           for (int i = 0; i < length; i++) {
             assertEquals("Different data at indexes: " + (start + i) + "and " + i, sourceVector.getObject(start + i),
-                toVector.getObject(i));
+                    toVector.getObject(i));
           }
         }
       }
@@ -286,10 +286,10 @@ public class TestUnionVector {
         final TransferPair transferPair = sourceVector.makeTransferPair(toVector);
 
         final int[][] transferLengths = {{0, 2},
-            {2, 1},
-            {3, 2},
-            {5, 3},
-            {8, 2}
+          {2, 1},
+          {3, 2},
+          {5, 3},
+          {8, 2}
         };
 
         for (final int[] transferLength : transferLengths) {
@@ -321,7 +321,7 @@ public class TestUnionVector {
     children.add(new Field("varchar", FieldType.nullable(MinorType.VARCHAR.getType()), null));
 
     final FieldType fieldType = new FieldType(false, new ArrowType.Union(UnionMode.Sparse, typeIds),
-        /*dictionary=*/null, metadata);
+            /*dictionary=*/null, metadata);
     final Field field = new Field("union", fieldType, children);
 
     MinorType minorType = MinorType.UNION;

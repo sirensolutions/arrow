@@ -833,7 +833,7 @@ public class TestListVector {
   public void testClearAndReuse() {
     try (final ListVector vector = ListVector.empty("list", allocator)) {
       BigIntVector bigIntVector =
-          (BigIntVector) vector.addOrGetVector(FieldType.nullable(MinorType.BIGINT.getType())).getVector();
+              (BigIntVector) vector.addOrGetVector(FieldType.nullable(MinorType.BIGINT.getType())).getVector();
       vector.setInitialCapacity(10);
       vector.allocateNew();
 
@@ -890,9 +890,9 @@ public class TestListVector {
       vector.setValueCount(2);
 
       Field expectedDataField = new Field(BaseRepeatedValueVector.DATA_VECTOR_NAME,
-          FieldType.nullable(new ArrowType.Int(32, true)), null);
+              FieldType.nullable(new ArrowType.Int(32, true)), null);
       Field expectedField = new Field(vector.getName(), FieldType.nullable(ArrowType.List.INSTANCE),
-          Arrays.asList(expectedDataField));
+              Arrays.asList(expectedDataField));
 
       assertEquals(expectedField, writer.getField());
     }

@@ -370,7 +370,6 @@ tasks:
       - arrow-cpp-{no_rc_version}-py38(h[a-z0-9]+)_0_cpu.tar.bz2
       - pyarrow-{no_rc_version}-py38(h[a-z0-9]+)_0_cpu.tar.bz2
 
-
 {% for python_version, python_tag, abi_tag in [("3.6", "cp36", "cp36m"),
                                                ("3.7", "cp37", "cp37m"),
                                                ("3.8", "cp38", "cp38"),

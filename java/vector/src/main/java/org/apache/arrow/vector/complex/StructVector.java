@@ -82,12 +82,12 @@ public class StructVector extends NonNullableStructVector implements FieldVector
                       FieldType fieldType,
                       CallBack callBack) {
     super(name,
-        checkNotNull(allocator),
-        fieldType,
-        callBack);
+            checkNotNull(allocator),
+            fieldType,
+            callBack);
     this.validityBuffer = allocator.getEmpty();
     this.validityAllocationSizeInBytes =
-        BitVectorHelper.getValidityBufferSize(BaseValueVector.INITIAL_VALUE_ALLOCATION);
+            BitVectorHelper.getValidityBufferSize(BaseValueVector.INITIAL_VALUE_ALLOCATION);
   }
 
   /**
@@ -109,7 +109,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
     super(name, checkNotNull(allocator), fieldType, callBack, conflictPolicy, allowConflictPolicyChanges);
     this.validityBuffer = allocator.getEmpty();
     this.validityAllocationSizeInBytes =
-      BitVectorHelper.getValidityBufferSize(BaseValueVector.INITIAL_VALUE_ALLOCATION);
+            BitVectorHelper.getValidityBufferSize(BaseValueVector.INITIAL_VALUE_ALLOCATION);
   }
 
   @Override
@@ -158,11 +158,11 @@ public class StructVector extends NonNullableStructVector implements FieldVector
   @Override
   public TransferPair getTransferPair(BufferAllocator allocator) {
     return new NullableStructTransferPair(this, new StructVector(name,
-        allocator,
-        fieldType,
-        null,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+            allocator,
+            fieldType,
+            null,
+            getConflictPolicy(),
+            allowConflictPolicyChanges), false);
   }
 
   @Override
@@ -173,21 +173,21 @@ public class StructVector extends NonNullableStructVector implements FieldVector
   @Override
   public TransferPair getTransferPair(String ref, BufferAllocator allocator) {
     return new NullableStructTransferPair(this, new StructVector(ref,
-        allocator,
-        fieldType,
-        null,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+            allocator,
+            fieldType,
+            null,
+            getConflictPolicy(),
+            allowConflictPolicyChanges), false);
   }
 
   @Override
   public TransferPair getTransferPair(String ref, BufferAllocator allocator, CallBack callBack) {
     return new NullableStructTransferPair(this, new StructVector(ref,
-        allocator,
-        fieldType,
-        callBack,
-        getConflictPolicy(),
-        allowConflictPolicyChanges), false);
+            allocator,
+            fieldType,
+            callBack,
+            getConflictPolicy(),
+            allowConflictPolicyChanges), false);
   }
 
   /**
@@ -222,7 +222,7 @@ public class StructVector extends NonNullableStructVector implements FieldVector
     @Override
     public void splitAndTransfer(int startIndex, int length) {
       Preconditions.checkArgument(startIndex >= 0 && length >= 0 && startIndex + length <= valueCount,
-          "Invalid parameters startIndex: %s, length: %s for valueCount: %s", startIndex, length, valueCount);
+              "Invalid parameters startIndex: %s, length: %s for valueCount: %s", startIndex, length, valueCount);
       target.clear();
       splitAndTransferValidityBuffer(startIndex, length, target);
       super.splitAndTransfer(startIndex, length);

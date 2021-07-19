@@ -60,12 +60,12 @@ public class ByteFunctionHelpers {
    */
   @Deprecated
   public static final int compare(
-      final ArrowBuf left,
-      int lStart,
-      int lEnd,
-      final ArrowBuf right,
-      int rStart,
-      int rEnd) {
+          final ArrowBuf left,
+          int lStart,
+          int lEnd,
+          final ArrowBuf right,
+          int rStart,
+          int rEnd) {
     return org.apache.arrow.memory.util.ByteFunctionHelpers.compare(left, lStart, lEnd, right, rStart, rEnd);
   }
 
@@ -82,12 +82,12 @@ public class ByteFunctionHelpers {
    */
   @Deprecated
   public static final int compare(
-      final ArrowBuf left,
-      int lStart,
-      int lEnd,
-      final byte[] right,
-      int rStart,
-      final int rEnd) {
+          final ArrowBuf left,
+          int lStart,
+          int lEnd,
+          final byte[] right,
+          int rStart,
+          final int rEnd) {
     return org.apache.arrow.memory.util.ByteFunctionHelpers.compare(left, lStart, lEnd, right, rStart, rEnd);
   }
 
