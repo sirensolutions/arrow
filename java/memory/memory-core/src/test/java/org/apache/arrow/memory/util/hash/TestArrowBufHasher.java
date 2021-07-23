@@ -89,7 +89,6 @@ public class TestArrowBufHasher {
     assertEquals(hashCode1, hashCode2);
   }
 
-  @Ignore
   @Test
   public void testHasherNegative() {
     try (ArrowBuf buf = allocator.buffer(BUFFER_LENGTH)) {
