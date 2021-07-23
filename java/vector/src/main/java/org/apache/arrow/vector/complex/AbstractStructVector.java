@@ -50,7 +50,7 @@ public abstract class AbstractStructVector extends AbstractContainerVector {
 
   static {
     String conflictPolicyStr = System.getProperty(STRUCT_CONFLICT_POLICY_JVM,
-            ConflictPolicy.CONFLICT_REPLACE.toString());
+        ConflictPolicy.CONFLICT_REPLACE.toString());
     if (conflictPolicyStr == null) {
       conflictPolicyStr = System.getenv(STRUCT_CONFLICT_POLICY_ENV);
     }
@@ -254,7 +254,7 @@ public abstract class AbstractStructVector extends AbstractContainerVector {
     final boolean old = vectors.put(
         Preconditions.checkNotNull(name, "field name cannot be null"),
         Preconditions.checkNotNull(vector, "vector cannot be null"),
-            overwrite
+        overwrite
     );
     if (old) {
       logger.debug("Field [{}] mutated to [{}] ", name,
@@ -291,7 +291,7 @@ public abstract class AbstractStructVector extends AbstractContainerVector {
       case CONFLICT_ERROR:
         if (vectors.containsKey(name)) {
           throw new IllegalStateException(String.format("Vector already exists: Existing[%s], Requested[%s] ",
-                  vector.getClass().getSimpleName(), vector.getField().getFieldType()));
+            vector.getClass().getSimpleName(), vector.getField().getFieldType()));
         }
         put(name, vector, false);
         break;

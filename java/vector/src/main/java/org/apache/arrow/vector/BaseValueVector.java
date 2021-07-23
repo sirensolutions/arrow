@@ -229,3 +229,4 @@ public abstract class BaseValueVector implements ValueVector {
     throw new UnsupportedOperationException();
   }
 }
+

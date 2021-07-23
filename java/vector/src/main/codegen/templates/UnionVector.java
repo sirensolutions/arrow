@@ -47,7 +47,6 @@ import org.apache.arrow.vector.util.DataSizeRoundingUtil;
 package org.apache.arrow.vector.complex;
 
 <#include "/@includes/vv_imports.ftl" />
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;

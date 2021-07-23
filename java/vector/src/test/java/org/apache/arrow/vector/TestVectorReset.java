@@ -110,7 +110,7 @@ public class TestVectorReset {
     try (final ListVector variableList =
            new ListVector("VarList", allocator, FieldType.nullable(MinorType.INT.getType()), null);
          final FixedSizeListVector fixedList =
-           new FixedSizeListVector("FixedList", allocator, FieldType.nullable(new FixedSizeList(2)), null)
+          new FixedSizeListVector("FixedList", allocator, FieldType.nullable(new FixedSizeList(2)), null)
     ) {
       // ListVector
       variableList.allocateNewSafe();
@@ -133,7 +133,7 @@ public class TestVectorReset {
     try (final NonNullableStructVector nonNullableStructVector =
            new NonNullableStructVector("Struct", allocator, FieldType.nullable(MinorType.INT.getType()), null);
          final StructVector structVector =
-           new StructVector("NullableStruct", allocator, FieldType.nullable(MinorType.INT.getType()), null)
+          new StructVector("NullableStruct", allocator, FieldType.nullable(MinorType.INT.getType()), null)
     ) {
       // NonNullableStructVector
       nonNullableStructVector.allocateNewSafe();
