@@ -30,7 +30,7 @@
     </dependency>
   </dependencies>
 
-   <build>
+  <build>
 
     <plugins>
       <plugin> <!-- no checkstyle on the generated code -->
