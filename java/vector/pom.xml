@@ -37,14 +37,6 @@
       <artifactId>arrow-memory-netty</artifactId>
       <version>${project.version}</version>
     </dependency>
-<!--    <dependency>-->
-<!--      <groupId>io.netty</groupId>-->
-<!--      <artifactId>netty-buffer</artifactId>-->
-<!--    </dependency>-->
-<!--    <dependency>-->
-<!--      <groupId>io.netty</groupId>-->
-<!--      <artifactId>netty-common</artifactId>-->
-<!--    </dependency>-->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
@@ -68,14 +60,14 @@
       <version>1.10</version>
     </dependency>
     <dependency>
-      <groupId>com.google.guava</groupId>
-      <artifactId>guava</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-unsafe</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-common</artifactId>
     </dependency>
     <dependency>
       <groupId>com.google.flatbuffers</groupId>
@@ -124,6 +116,7 @@
           <reuseForks>true</reuseForks>
           <systemPropertyVariables>
             <java.io.tmpdir>${project.build.directory}</java.io.tmpdir>
+            <io.netty.tryReflectionSetAccessible>true</io.netty.tryReflectionSetAccessible>
             <user.timezone>UTC</user.timezone>
           </systemPropertyVariables>
           <!-- Note: changing the below configuration might increase the max allocation size for a vector
