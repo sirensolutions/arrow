@@ -809,7 +809,7 @@ public abstract class BaseVariableWidthVector extends BaseValueVector
       target.validityBuffer.setByte(byteSizeTarget - 1, b1 + b2);
     } else {
       byte b1 = BitVectorHelper.getBitsFromCurrentByte(this.validityBuffer,
-           firstByteSource + byteSizeTarget - 1, offset);
+          firstByteSource + byteSizeTarget - 1, offset);
       target.validityBuffer.setByte(byteSizeTarget - 1, b1);
     }
   }

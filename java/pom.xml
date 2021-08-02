@@ -123,7 +123,6 @@
             <exclude>**/*.proto</exclude>
             <exclude>**/*.fmpp</exclude>
             <exclude>**/target/**</exclude>
-            <exclude>**/*.iml</exclude>
             <exclude>**/*.tdd</exclude>
             <exclude>**/*.project</exclude>
             <exclude>**/TAGS</exclude>
@@ -137,6 +136,7 @@
             <exclude>**/*.linux</exclude>
             <exclude>**/client/build/**</exclude>
             <exclude>**/*.tbl</exclude>
+            <exclude>**/*.iml</exclude>
           </excludes>
         </configuration>
       </plugin>

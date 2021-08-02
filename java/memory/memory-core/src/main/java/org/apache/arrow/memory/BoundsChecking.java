@@ -40,7 +40,7 @@ public class BoundsChecking {
       logger.warn("\"siren.drill.enable_unsafe_memory_access\" has been renamed to " +
               "\"siren.arrow.enable_unsafe_memory_access\"");
       logger.warn("\"siren.arrow.enable_unsafe_memory_access\" can be set to: " +
-              " true (to not check) or false (to check, default)");
+              " true (to not check, default) or false (to check)");
     }
     String newProperty = System.getProperty("siren.arrow.enable_unsafe_memory_access");
 
@@ -55,7 +55,7 @@ public class BoundsChecking {
       unsafeFlagValue = envProperty;
     }
 
-    BOUNDS_CHECKING_ENABLED = "false".equals(unsafeFlagValue);
+    BOUNDS_CHECKING_ENABLED = "true".equals(unsafeFlagValue);
   }
 
   private BoundsChecking() {
