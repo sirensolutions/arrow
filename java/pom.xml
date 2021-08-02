@@ -695,7 +695,7 @@
       </modules>
     </profile>
 
-        <profile>
+    <profile>
       <!-- Use the version of arrow-vector that shades flatbuffers and packages format -->
       <id>shade-flatbuffers</id>
       <properties>
