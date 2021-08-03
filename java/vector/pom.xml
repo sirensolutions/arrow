@@ -135,6 +135,11 @@
             <goals>
               <goal>test</goal>
             </goals>
+            <configuration>
+              <classpathDependencyExcludes>
+                <classpathDependencyExclude>org.apache.arrow:arrow-memory-netty</classpathDependencyExclude>
+              </classpathDependencyExcludes>
+            </configuration>
           </execution>
         </executions>
       </plugin>
