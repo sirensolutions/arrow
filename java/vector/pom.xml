@@ -32,6 +32,7 @@
       <artifactId>arrow-memory-core</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- This manually adds the shaded netty jar by ensuring the dependency reduced pom is used. -->
     <dependency>
       <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-netty</artifactId>
@@ -48,11 +49,6 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.carrotsearch</groupId>
-      <artifactId>hppc</artifactId>
-      <version>0.7.2</version>
     </dependency>
     <dependency>
       <groupId>commons-codec</groupId>
