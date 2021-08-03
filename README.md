@@ -43,8 +43,7 @@ Because of the default value change of `unsafe_memory_access` property, some
 tests in `vector` fail.
 
 ```sh
-mvn -pl format,vector package -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
-mvn -pl memory package
+mvn -pl memory,memory/memory-core,memory/memory-netty,memory/memory-unsafe,format,vector install -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
 ```
 
 ## Make a new release
