@@ -89,6 +89,7 @@
                   <exclude>org.slf4j</exclude>
                   <exclude>com.google.code.findbugs</exclude>
                   <exclude>com.google.guava</exclude>
+                  <exclude>org.apache.arrow:arrow-memory-core:*:*</exclude>
                 </excludes>
               </artifactSet>
               <!--to prevent the Invalid signature file error -->
