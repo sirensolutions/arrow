@@ -30,6 +30,15 @@
 - The Siren's fork of `netty` is used in `vector`. This means that `netty`
   imports in that module need to be prefixed with `siren`.
 
+## Check that Siren version of Netty is used
+- In order to check that Siren version of Netty is being used, 
+  run the unit test `CheckAccessibleTest` in 
+  `https://github.com/sirensolutions/siren-platform/blob/master/core/src/test/java/io/siren/federate/core/common/CheckAccessibleTest.java`.
+- Note: the unit test `CheckAccessibleTest` is currently ignored, please set it again to ignore after running the test.
+  The unit test is ignored because the settings in `CheckAccessibleTest` is not taken into account when the whole unit test suite is run, therefore it fails. 
+  This could be because when the class is loaded, the default settings is used (which is a static block) and the new settings in the `CheckAccessibleTest` is
+  then not applied when the test suit is run.
+
 ## Build
 
 To build the `memory`, `format` and `vector` modules:
