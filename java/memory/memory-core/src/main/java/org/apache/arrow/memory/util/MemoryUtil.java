@@ -81,7 +81,6 @@ public class MemoryUtil {
 
       // get the offset of the address field in a java.nio.Buffer object
       Field addressField = java.nio.Buffer.class.getDeclaredField("address");
-      addressField.setAccessible(true);
       BYTE_BUFFER_ADDRESS_OFFSET = UNSAFE.objectFieldOffset(addressField);
 
       Constructor<?> directBufferConstructor;
