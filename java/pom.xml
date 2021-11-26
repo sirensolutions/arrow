@@ -862,7 +862,7 @@
           <url>${artifactory.url}/libs-snapshot-local</url>
         </snapshotRepository>
       </distributionManagement>
-    </profile>	
+    </profile>
 
   </profiles>
 
