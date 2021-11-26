@@ -20,7 +20,7 @@
 
   <groupId>org.apache.arrow</groupId>
   <artifactId>arrow-java-root</artifactId>
-  <version>4.0.0</version>
+  <version>siren-4.0.0-1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Apache Arrow Java Root POM</name>
@@ -33,7 +33,7 @@
     <dep.junit.jupiter.version>5.4.0</dep.junit.jupiter.version>
     <dep.slf4j.version>1.7.25</dep.slf4j.version>
     <dep.guava.version>20.0</dep.guava.version>
-    <dep.netty.version>4.1.48.Final</dep.netty.version>
+    <dep.netty.version>siren-4.1.48-1</dep.netty.version>
     <dep.jackson.version>2.11.4</dep.jackson.version>
     <dep.hadoop.version>2.7.1</dep.hadoop.version>
     <dep.fbs.version>1.12.0</dep.fbs.version>
@@ -657,15 +657,12 @@
     <module>format</module>
     <module>memory</module>
     <module>vector</module>
-    <module>tools</module>
-    <module>adapter/jdbc</module>
-    <module>plasma</module>
-    <module>flight/flight-core</module>
-    <module>flight/flight-grpc</module>
-    <module>performance</module>
-    <module>algorithm</module>
-    <module>adapter/avro</module>
-    <module>compression</module>
+    <!--<module>tools</module>-->
+    <!--<module>adapter/jdbc</module>-->
+    <!--<module>plasma</module>-->
+    <!--<module>flight</module>-->
+    <!--<module>performance</module>-->
+    <!--<module>algorithm</module>-->
   </modules>
 
   <profiles>
@@ -757,6 +754,25 @@
           </plugin>
         </plugins>
       </build>
+    </profile>
+    
+
+    <!-- To deploy to Siren artifactory -->
+    <profile>
+      <id>artifactory</id>
+
+      <distributionManagement>
+        <repository>
+          <id>artifactory-releases</id>
+          <name>artifactory-releases</name>
+          <url>${artifactory.url}/libs-release-local</url>
+        </repository>
+        <snapshotRepository>
+          <id>artifactory-snapshots</id>
+          <name>artifactory-snapshots</name>
+          <url>${artifactory.url}/libs-snapshot-local</url>
+        </snapshotRepository>
+      </distributionManagement>
     </profile>
 
   </profiles>

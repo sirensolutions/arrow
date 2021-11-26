@@ -81,7 +81,6 @@ public class MemoryUtil {
 
       // get the offset of the address field in a java.nio.Buffer object
       Field addressField = java.nio.Buffer.class.getDeclaredField("address");
-      addressField.setAccessible(true);
       BYTE_BUFFER_ADDRESS_OFFSET = UNSAFE.objectFieldOffset(addressField);
 
       Constructor<?> directBufferConstructor;
@@ -99,10 +98,7 @@ public class MemoryUtil {
                   constructor.setAccessible(true);
                   logger.debug("Constructor for direct buffer found and made accessible");
                   return constructor;
-                } catch (NoSuchMethodException e) {
-                  logger.debug("Cannot get constructor for direct buffer allocation", e);
-                  return e;
-                } catch (SecurityException e) {
+                } catch (Exception e) {
                   logger.debug("Cannot get constructor for direct buffer allocation", e);
                   return e;
                 }

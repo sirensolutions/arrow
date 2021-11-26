@@ -13,7 +13,7 @@
   <parent>
     <artifactId>arrow-memory</artifactId>
     <groupId>org.apache.arrow</groupId>
-    <version>4.0.0</version>
+    <version>siren-4.0.0-1-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
@@ -35,9 +35,11 @@
       <groupId>io.netty</groupId>
       <artifactId>netty-common</artifactId>
     </dependency>
+    <!--provided by elasticsearch-->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.immutables</groupId>
@@ -62,6 +64,48 @@
             <user.timezone>UTC</user.timezone>
           </systemPropertyVariables>
         </configuration>
+      </plugin>      
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <shadedArtifactAttached>false</shadedArtifactAttached>
+              <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
+              <relocations>
+                <relocation>
+                  <pattern>io.netty</pattern>
+                  <shadedPattern>siren.io.netty</shadedPattern>
+                </relocation>
+              </relocations>
+              <artifactSet>
+                <excludes>
+                  <exclude>org.slf4j</exclude>
+                  <exclude>com.google.code.findbugs</exclude>
+                  <exclude>com.google.guava</exclude>
+                  <exclude>org.apache.arrow:arrow-memory-core:*:*</exclude>
+                </excludes>
+              </artifactSet>
+              <!--to prevent the Invalid signature file error -->
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
