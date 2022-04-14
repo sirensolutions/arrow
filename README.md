@@ -55,7 +55,7 @@ tests in `vector` fail.
 mvn -pl memory,memory/memory-core,memory/memory-netty,memory/memory-unsafe,format,vector install -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
 ```
 
-## Make a new release
+## Make a new release of Siren's Apache Arrow
 
 - Tests should pass.
 
@@ -77,7 +77,7 @@ git tag --sign siren-0.14.1-2
 $ mvn deploy -DskipTests=true -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
 ```
 
-## Update to a new version of Apache Arrow
+## Update to a new version of Siren's Apache Arrow
 
 - add `git@github.com:apache/arrow.git` as the `upstream` remote.
 - execute `git fetch --all --tags`
