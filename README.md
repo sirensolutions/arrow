@@ -17,6 +17,73 @@
   under the License.
 -->
 
+# Siren fork of Arrow
+
+- The properties `drill.enable_unsafe_memory_access` and
+  `arrow.enable_unsafe_memory_access` are prefixed with `siren` and their
+  default value is set to `true`. The first property is deprecated.
+
+- In order to avoid conflict with a version of `netty` used in Elasticsearch, we
+  relocate the netty custom package and dependency in `memory` into a package
+  named `siren`. The relocation is achieved thanks to the maven shade plugin.
+
+- The Siren's fork of `netty` is used in `vector`. This means that `netty`
+  imports in that module need to be prefixed with `siren`.
+
+## Check that Siren version of Netty is used
+- In order to check that Siren version of Netty is being used, 
+  run the unit test `CheckAccessibleTest` in 
+  `https://github.com/sirensolutions/siren-platform/blob/master/core/src/test/java/io/siren/federate/core/common/CheckAccessibleTest.java`.
+- Note: the unit test `CheckAccessibleTest` is currently ignored, please set it again to ignore after running the test.
+  The unit test is ignored because the settings in `CheckAccessibleTest` is not taken into account when the whole unit test suite is run, therefore it fails. 
+  This could be because when the class is loaded, the default settings is used (which is a static block) and the new settings in the `CheckAccessibleTest` is
+  then not applied when the test suit is run.
+
+## Build
+
+To build the `memory`, `format` and `vector` modules:
+
+```sh
+$ cd java
+$ mvn clean package
+```
+
+Because of the default value change of `unsafe_memory_access` property, some
+tests in `vector` fail.
+
+```sh
+mvn -pl memory,memory/memory-core,memory/memory-netty,memory/memory-unsafe,format,vector install -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
+```
+
+## Make a new release of Siren's Apache Arrow
+
+- Tests should pass.
+
+- Make a new version:
+
+```sh
+mvn versions:set -DnewVersion=siren-0.14.1-2
+```
+
+- tag the commit for the release
+
+```sh
+git tag --sign siren-0.14.1-2
+````
+
+- Deploy to Siren's artifactory
+
+```sh
+$ mvn deploy -DskipTests=true -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
+```
+
+## Update to a new version of Siren's Apache Arrow
+
+- add `git@github.com:apache/arrow.git` as the `upstream` remote.
+- execute `git fetch --all --tags`
+- create a temporary branch from `siren-changes`
+- rebase against the new tag.
+
 # Apache Arrow
 
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/arrow.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:arrow)

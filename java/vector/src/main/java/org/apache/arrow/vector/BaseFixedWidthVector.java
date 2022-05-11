@@ -37,7 +37,7 @@ import org.apache.arrow.vector.util.CallBack;
 import org.apache.arrow.vector.util.OversizedAllocationException;
 import org.apache.arrow.vector.util.TransferPair;
 
-import io.netty.util.internal.PlatformDependent;
+import siren.io.netty.util.internal.PlatformDependent;
 
 /**
  * BaseFixedWidthVector provides an abstract interface for
