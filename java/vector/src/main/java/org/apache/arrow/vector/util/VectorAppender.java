@@ -39,7 +39,7 @@ import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.NonNullableStructVector;
 import org.apache.arrow.vector.complex.UnionVector;
 
-import io.netty.util.internal.PlatformDependent;
+import siren.io.netty.util.internal.PlatformDependent;
 
 /**
  * Utility to append two vectors together.
