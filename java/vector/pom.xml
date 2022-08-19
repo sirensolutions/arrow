@@ -176,12 +176,14 @@
             <configuration>
               <artifactSet>
                 <includes>
+                  <include>org.apache.arrow:arrow-memory-core</include>
+                  <include>org.apache.arrow:arrow-memory-netty</include>
                   <include>org.apache.arrow:arrow-format</include>
                   <include>com.google.flatbuffers:*</include>
                 </includes>
               </artifactSet>
               <shadedArtifactAttached>true</shadedArtifactAttached>
-              <shadedClassifierName>shade-format-flatbuffers</shadedClassifierName>
+              <shadedClassifierName>shade</shadedClassifierName>
               <keepDependenciesWithProvidedScope>true</keepDependenciesWithProvidedScope>
               <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
               <relocations>
