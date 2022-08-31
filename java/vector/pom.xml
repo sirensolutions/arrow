@@ -125,12 +125,12 @@
             <goals>
               <goal>test</goal>
             </goals>
-            <configuration>
+            <!-- <configuration>
               <classpathDependencyExcludes>
                 <classpathDependencyExclude>org.apache.arrow:arrow-memory-netty</classpathDependencyExclude>
               </classpathDependencyExcludes>
               <reportNameSuffix>netty</reportNameSuffix>
-            </configuration>
+            </configuration> -->
           </execution>
         </executions>
       </plugin>
