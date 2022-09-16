@@ -166,7 +166,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.1.1</version>
+        <version>3.3.0</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -176,14 +176,16 @@
             <configuration>
               <artifactSet>
                 <includes>
+                  <include>org.apache.arrow:arrow-memory-core</include>
+                  <include>org.apache.arrow:arrow-memory-netty</include>
                   <include>org.apache.arrow:arrow-format</include>
                   <include>com.google.flatbuffers:*</include>
                 </includes>
               </artifactSet>
               <shadedArtifactAttached>true</shadedArtifactAttached>
-              <shadedClassifierName>shade-format-flatbuffers</shadedClassifierName>
-              <keepDependenciesWithProvidedScope>true</keepDependenciesWithProvidedScope>
-              <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+              <shadedClassifierName>shade</shadedClassifierName>
+              <createDependencyReducedPom>true</createDependencyReducedPom>
+              <useDependencyReducedPomInJar>true</useDependencyReducedPomInJar>
               <relocations>
                 <relocation>
                   <pattern>com.google.flatbuffers</pattern>
