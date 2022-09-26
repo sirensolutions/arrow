@@ -78,6 +78,7 @@ $ mvn deploy -DskipTests=true -P artifactory -Dartifactory_username=<USERNAME> -
 ```
 
 ## Update to a new version of Siren's Apache Arrow
+Developer tips on updating to a new version of Netty can be found here: https://sirensolutions.atlassian.net/wiki/spaces/EN/pages/3108864001/Upgrading+Federate+Apache+Arrow+Version .
 
 - add `git@github.com:apache/arrow.git` as the `upstream` remote.
 - execute `git fetch --all --tags`
