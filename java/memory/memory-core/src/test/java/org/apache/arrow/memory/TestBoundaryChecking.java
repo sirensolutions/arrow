@@ -56,7 +56,7 @@ public class TestBoundaryChecking {
 
   /**
    * Siren: Ensure the flag for bounds checking is disabled by default.
-   * This will protect users from JVM crashes.
+   * Enabling it will protect users from JVM crashes.
    */
   @Test
   public void testDefaultValue() throws Exception {
