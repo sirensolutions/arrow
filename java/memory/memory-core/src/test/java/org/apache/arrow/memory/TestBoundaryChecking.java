@@ -55,15 +55,15 @@ public class TestBoundaryChecking {
   }
 
   /**
-   * Ensure the flag for bounds checking is enabled by default.
-   * This will protect users from JVM crashes.
+   * Siren: Ensure the flag for bounds checking is disabled by default.
+   * Enabling it will protect users from JVM crashes.
    */
   @Test
   public void testDefaultValue() throws Exception {
     ClassLoader classLoader = copyClassLoader();
     if (classLoader != null) {
       boolean boundsCheckingEnabled = getFlagValue(classLoader);
-      Assert.assertTrue(boundsCheckingEnabled);
+      Assert.assertFalse(boundsCheckingEnabled);
     }
   }
 

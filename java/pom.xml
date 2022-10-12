@@ -20,7 +20,7 @@
 
   <groupId>org.apache.arrow</groupId>
   <artifactId>arrow-java-root</artifactId>
-  <version>11.0.0</version>
+  <version>siren-11.0.0-2-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Apache Arrow Java Root POM</name>
@@ -33,7 +33,7 @@
     <dep.junit.jupiter.version>5.9.0</dep.junit.jupiter.version>
     <dep.slf4j.version>1.7.25</dep.slf4j.version>
     <dep.guava-bom.version>31.1-jre</dep.guava-bom.version>
-    <dep.netty-bom.version>4.1.82.Final</dep.netty-bom.version>
+    <dep.netty-bom.version>siren-4.1.82.1-SNAPSHOT</dep.netty-bom.version>
     <dep.grpc-bom.version>1.49.1</dep.grpc-bom.version>
     <dep.protobuf-bom.version>3.21.6</dep.protobuf-bom.version>
     <dep.jackson-bom.version>2.13.4</dep.jackson-bom.version>
@@ -716,14 +716,14 @@
     <module>format</module>
     <module>memory</module>
     <module>vector</module>
-    <module>tools</module>
-    <module>adapter/jdbc</module>
-    <module>plasma</module>
-    <module>flight</module>
-    <module>performance</module>
-    <module>algorithm</module>
-    <module>adapter/avro</module>
-    <module>compression</module>
+    <!--<module>tools</module>-->
+    <!--<module>adapter/jdbc</module>-->
+    <!--<module>plasma</module>-->
+    <!--<module>flight</module>-->
+    <!--<module>performance</module>-->
+    <!--<module>algorithm</module>-->
+    <!--<module>adapter/avro</module>-->
+    <!--<module>compression</module>-->
   </modules>
 
   <profiles>
@@ -1211,6 +1211,24 @@
           </plugin>
         </plugins>
       </build>
+    </profile>
+
+    <!-- To deploy to Siren artifactory -->
+    <profile>
+      <id>artifactory</id>
+
+      <distributionManagement>
+        <repository>
+          <id>artifactory-releases</id>
+          <name>artifactory-releases</name>
+          <url>${artifactory.url}/libs-release-local</url>
+        </repository>
+        <snapshotRepository>
+          <id>artifactory-snapshots</id>
+          <name>artifactory-snapshots</name>
+          <url>${artifactory.url}/libs-snapshot-local</url>
+        </snapshotRepository>
+      </distributionManagement>
     </profile>
 
   </profiles>
