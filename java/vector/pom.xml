@@ -14,7 +14,7 @@
   <parent>
     <groupId>org.apache.arrow</groupId>
     <artifactId>arrow-java-root</artifactId>
-    <version>9.0.0</version>
+    <version>siren-9.0.0-2-SNAPSHOT</version>
   </parent>
   <artifactId>arrow-vector</artifactId>
   <name>Arrow Vectors</name>
@@ -57,7 +57,6 @@
       <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-netty</artifactId>
       <version>${project.version}</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.arrow</groupId>
@@ -125,12 +124,6 @@
             <goals>
               <goal>test</goal>
             </goals>
-            <configuration>
-              <classpathDependencyExcludes>
-                <classpathDependencyExclude>org.apache.arrow:arrow-memory-netty</classpathDependencyExclude>
-              </classpathDependencyExcludes>
-              <reportNameSuffix>netty</reportNameSuffix>
-            </configuration>
           </execution>
         </executions>
       </plugin>
@@ -177,7 +170,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.1.1</version>
+        <version>3.3.0</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -187,14 +180,16 @@
             <configuration>
               <artifactSet>
                 <includes>
+                  <include>org.apache.arrow:arrow-memory-core</include>
+                  <include>org.apache.arrow:arrow-memory-netty</include>
                   <include>org.apache.arrow:arrow-format</include>
                   <include>com.google.flatbuffers:*</include>
                 </includes>
               </artifactSet>
               <shadedArtifactAttached>true</shadedArtifactAttached>
-              <shadedClassifierName>shade-format-flatbuffers</shadedClassifierName>
-              <keepDependenciesWithProvidedScope>true</keepDependenciesWithProvidedScope>
-              <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+              <shadedClassifierName>shade</shadedClassifierName>
+              <createDependencyReducedPom>true</createDependencyReducedPom>
+              <useDependencyReducedPomInJar>true</useDependencyReducedPomInJar>
               <relocations>
                 <relocation>
                   <pattern>com.google.flatbuffers</pattern>

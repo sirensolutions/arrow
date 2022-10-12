@@ -27,7 +27,7 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.junit.Test;
 
-import io.netty.util.internal.PlatformDependent;
+import siren.io.netty.util.internal.PlatformDependent;
 
 public class TestBitVectorHelper {
   @Test
