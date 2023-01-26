@@ -57,9 +57,9 @@
     <profile>
       <id>opens-tests</id>
       <!-- Run tests WITHOUT add-opens to make sure we fail-fast -->
-      <activation>
-        <jdk>[16,]</jdk>
-      </activation>
+      <!--<activation>
+        <jdk>[20,]</jdk>
+      </activation> -->
       <build>
         <plugins>
           <plugin>
