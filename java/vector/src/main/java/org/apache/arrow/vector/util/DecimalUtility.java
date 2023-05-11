@@ -24,7 +24,7 @@ import java.nio.ByteOrder;
 
 import org.apache.arrow.memory.ArrowBuf;
 
-import io.netty.util.internal.PlatformDependent;
+import siren.io.netty.util.internal.PlatformDependent;
 
 /**
  * Utility methods for configurable precision Decimal values (e.g. {@link BigDecimal}).

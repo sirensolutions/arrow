@@ -17,10 +17,10 @@
 
 package org.apache.arrow.vector;
 
-import static io.netty.util.internal.PlatformDependent.getByte;
-import static io.netty.util.internal.PlatformDependent.getInt;
-import static io.netty.util.internal.PlatformDependent.getLong;
 import static org.apache.arrow.memory.util.LargeMemoryUtil.checkedCastToInt;
+import static siren.io.netty.util.internal.PlatformDependent.getByte;
+import static siren.io.netty.util.internal.PlatformDependent.getInt;
+import static siren.io.netty.util.internal.PlatformDependent.getLong;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BoundsChecking;
@@ -28,7 +28,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.util.DataSizeRoundingUtil;
 
-import io.netty.util.internal.PlatformDependent;
+import siren.io.netty.util.internal.PlatformDependent;
 
 /**
  * Helper class for performing generic operations on a bit vector buffer.
