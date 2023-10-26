@@ -20,7 +20,7 @@
 
   <groupId>org.apache.arrow</groupId>
   <artifactId>arrow-java-root</artifactId>
-  <version>siren-11.0.0-3-SNAPSHOT</version>
+  <version>siren-11.0.0-3</version>
   <packaging>pom</packaging>
 
   <name>Apache Arrow Java Root POM</name>
@@ -33,7 +33,7 @@
     <dep.junit.jupiter.version>5.9.0</dep.junit.jupiter.version>
     <dep.slf4j.version>1.7.25</dep.slf4j.version>
     <dep.guava-bom.version>31.1-jre</dep.guava-bom.version>
-    <dep.netty-bom.version>siren-4.1.82-1</dep.netty-bom.version>
+    <dep.netty-bom.version>siren-4.1.82-2</dep.netty-bom.version>
     <dep.grpc-bom.version>1.49.1</dep.grpc-bom.version>
     <dep.protobuf-bom.version>3.21.6</dep.protobuf-bom.version>
     <dep.jackson-bom.version>2.13.4</dep.jackson-bom.version>
