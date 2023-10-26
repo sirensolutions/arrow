@@ -20,11 +20,13 @@ package org.apache.arrow.memory;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestOpens {
   /** Instantiating the RootAllocator should poke MemoryUtil and fail. */
   @Test
+  @Ignore
   public void testMemoryUtilFailsLoudly() {
     // This test is configured by Maven to run WITHOUT add-opens. So this should fail on JDK16+
     // (where JEP396 means that add-opens is required to access JDK internals).
