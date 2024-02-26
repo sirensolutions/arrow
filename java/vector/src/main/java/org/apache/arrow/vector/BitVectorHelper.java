@@ -18,9 +18,6 @@
 package org.apache.arrow.vector;
 
 import static org.apache.arrow.memory.util.LargeMemoryUtil.checkedCastToInt;
-import static siren.io.netty.util.internal.PlatformDependent.getByte;
-import static siren.io.netty.util.internal.PlatformDependent.getInt;
-import static siren.io.netty.util.internal.PlatformDependent.getLong;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BoundsChecking;
