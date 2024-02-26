@@ -602,7 +602,7 @@
       <dependency>
         <groupId>org.apache.arrow</groupId>
         <artifactId>arrow-bom</artifactId>
-        <version>${project.version}</version>
+        <version>15.0.0</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -791,8 +791,8 @@
   </reporting>
 
   <modules>
-    <!--<module>maven</module>-->
-    <module>bom</module>
+    <module>maven</module>
+    <!--<module>bom</module>-->
     <module>format</module>
     <module>memory</module>
     <module>vector</module>
