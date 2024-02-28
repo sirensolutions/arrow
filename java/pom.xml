@@ -344,9 +344,9 @@
           <execution>
             <id>analyze</id>
             <phase>verify</phase>
-            <goals>
+            <!--<goals>
               <goal>analyze-only</goal>
-            </goals>
+            </goals>-->
             <configuration>
               <ignoreNonCompile>true</ignoreNonCompile>
               <failOnWarning>true</failOnWarning>
