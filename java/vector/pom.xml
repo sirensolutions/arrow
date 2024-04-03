@@ -14,7 +14,7 @@
   <parent>
     <groupId>org.apache.arrow</groupId>
     <artifactId>arrow-java-root</artifactId>
-    <version>siren-15.0.0-2-SNAPSHOT</version>
+    <version>siren-15.0.0-remove-netty-test-SNAPSHOT</version>
   </parent>
   <artifactId>arrow-vector</artifactId>
   <name>Arrow Vectors</name>
@@ -55,14 +55,8 @@
     </dependency>
     <dependency>
       <groupId>org.apache.arrow</groupId>
-      <artifactId>arrow-memory-netty</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-unsafe</artifactId>
       <version>${project.version}</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>com.google.flatbuffers</groupId>
@@ -188,7 +182,7 @@
               <artifactSet>
                 <includes>
                   <include>org.apache.arrow:arrow-memory-core</include>
-                  <include>org.apache.arrow:arrow-memory-netty</include>
+                  <include>org.apache.arrow:arrow-memory-unsafe</include>
                   <include>org.apache.arrow:arrow-format</include>
                   <include>com.google.flatbuffers:*</include>
                 </includes>

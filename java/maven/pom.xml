@@ -17,7 +17,7 @@
   -->
   <groupId>org.apache.arrow.maven.plugins</groupId>
   <artifactId>arrow-maven-plugins</artifactId>
-  <version>siren-15.0.0-2-SNAPSHOT</version>
+  <version>siren-15.0.0-remove-netty-test-SNAPSHOT</version>
   <name>Arrow Maven Plugins</name>
   <packaging>pom</packaging>
 
