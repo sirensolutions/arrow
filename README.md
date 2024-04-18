@@ -52,7 +52,7 @@ Because of the default value change of `unsafe_memory_access` property, some
 tests in `vector` fail.
 
 ```sh
-mvn -pl maven,maven/module-info-compiler-maven-plugin,memory,memory/memory-core,memory/memory-netty,memory/memory-unsafe,format,vector install -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
+mvn -pl maven,maven/module-info-compiler-maven-plugin,memory,memory/memory-core,memory/memory-unsafe,format,vector install -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
 ```
 
 ## Make a new release of Siren's Apache Arrow
