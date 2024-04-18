@@ -109,7 +109,7 @@
             <phase>test</phase>
             <configuration>
               <classpathDependencyExcludes>
-                <classpathDependencyExclude>org.apache.arrow:arrow-memory-unsafe</classpathDependencyExclude>
+                <classpathDependencyExclude>org.apache.arrow:arrow-memory-netty</classpathDependencyExclude>
               </classpathDependencyExcludes>
             </configuration>
           </execution>
