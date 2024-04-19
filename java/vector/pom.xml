@@ -55,6 +55,11 @@
     </dependency>
     <dependency>
       <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-memory-netty</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-unsafe</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -119,6 +124,12 @@
             <goals>
               <goal>test</goal>
             </goals>
+            <configuration>
+              <classpathDependencyExcludes>
+                <classpathDependencyExclude>org.apache.arrow:arrow-memory-netty</classpathDependencyExclude>
+              </classpathDependencyExcludes>
+              <reportNameSuffix>netty</reportNameSuffix>
+            </configuration>
           </execution>
         </executions>
       </plugin>
@@ -171,7 +182,7 @@
           issues in the arrow-tools tests looking up FlatBuffer
           dependencies.
          -->
-          <version>3.3.0</version>
+        <version>3.3.0</version>
         <executions>
           <execution>
             <phase>package</phase>
