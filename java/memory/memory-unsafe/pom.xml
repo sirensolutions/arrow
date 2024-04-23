@@ -28,4 +28,5 @@
       <artifactId>arrow-memory-core</artifactId>
     </dependency>
   </dependencies>
+
 </project>

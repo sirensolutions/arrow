@@ -20,7 +20,6 @@ import static org.apache.arrow.util.Preconditions.checkState;
 
 import com.google.flatbuffers.FlatBufferBuilder;
 
-
 import org.apache.arrow.memory.*;
 import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.types.Types;
