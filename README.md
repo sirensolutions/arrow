@@ -19,25 +19,13 @@
 
 # Siren fork of Arrow
 
-- The properties `drill.enable_unsafe_memory_access` and
+The properties `drill.enable_unsafe_memory_access` and
   `arrow.enable_unsafe_memory_access` are prefixed with `siren` and their
   default value is set to `true`. The first property is deprecated.
 
-- In order to avoid conflict with a version of `netty` used in Elasticsearch, we
-  relocate the netty custom package and dependency in `memory` into a package
-  named `siren`. The relocation is achieved thanks to the maven shade plugin.
-
-- The Siren's fork of `netty` is used in `vector`. This means that `netty`
-  imports in that module need to be prefixed with `siren`.
-
-## Check that Siren version of Netty is used
-- In order to check that Siren version of Netty is being used, 
-  run the unit test `CheckAccessibleTest` in 
-  `https://github.com/sirensolutions/siren-platform/blob/master/core/src/test/java/io/siren/federate/core/common/CheckAccessibleTest.java`.
-- Note: the unit test `CheckAccessibleTest` is currently ignored, please set it again to ignore after running the test.
-  The unit test is ignored because the setting in `CheckAccessibleTest` is not taken into account when the whole unit test suite is run, therefore it fails. 
-  This could be because when the class is loaded, the default settings are used (which is a static block) and the new settings in the `CheckAccessibleTest` are
-  then not applied when the test suit is run.
+## Check that Arrow uses Unsafe class to access off-heap memory for memory allocation
+In order to check that Arrow uses Unsafe class for memory allocation, run the unit test `CheckArrowTest` in 
+  `https://github.com/sirensolutions/siren-platform/blob/master/core/src/test/java/io/siren/federate/core/common/CheckArrowTest.java`.
 
 ## Build
 
@@ -78,7 +66,7 @@ $ mvn deploy -DskipTests=true -P artifactory -Dartifactory_username=<USERNAME> -
 ```
 
 ## Update to a new version of Siren's Apache Arrow
-Developer tips on updating to a new version of Netty can be found here: https://sirensolutions.atlassian.net/wiki/spaces/EN/pages/3108864001/Upgrading+Federate+Apache+Arrow+Version .
+Developer tips on updating to a new version of Arrow can be found here: https://sirensolutions.atlassian.net/wiki/spaces/EN/pages/3108864001/Upgrading+Federate+Apache+Arrow+Version .
 
 - add `git@github.com:apache/arrow.git` as the `upstream` remote.
 - execute `git fetch --all --tags`
