@@ -56,7 +56,7 @@
     <dependency>
       <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-netty</artifactId>
-      <scope>test</scope>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.arrow</groupId>
@@ -194,6 +194,7 @@
                 <includes>
                   <include>org.apache.arrow:arrow-memory-core</include>
                   <include>org.apache.arrow:arrow-memory-unsafe</include>
+                  <include>org.apache.arrow:arrow-memory-netty</include>
                   <include>org.apache.arrow:arrow-format</include>
                   <include>com.google.flatbuffers:*</include>
                 </includes>
