@@ -14,7 +14,7 @@
   <parent>
     <groupId>org.apache.arrow</groupId>
     <artifactId>arrow-java-root</artifactId>
-    <version>15.0.0</version>
+    <version>siren-15.0.0-2-SNAPSHOT</version>
   </parent>
   <artifactId>arrow-vector</artifactId>
   <name>Arrow Vectors</name>
@@ -25,10 +25,12 @@
     <dependency>
       <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-format</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-core</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
@@ -59,7 +61,7 @@
     <dependency>
       <groupId>org.apache.arrow</groupId>
       <artifactId>arrow-memory-unsafe</artifactId>
-      <scope>test</scope>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>com.google.flatbuffers</groupId>
@@ -180,7 +182,7 @@
           issues in the arrow-tools tests looking up FlatBuffer
           dependencies.
          -->
-        <version>3.2.4</version>
+        <version>3.3.0</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -190,14 +192,16 @@
             <configuration>
               <artifactSet>
                 <includes>
+                  <include>org.apache.arrow:arrow-memory-core</include>
+                  <include>org.apache.arrow:arrow-memory-unsafe</include>
                   <include>org.apache.arrow:arrow-format</include>
                   <include>com.google.flatbuffers:*</include>
                 </includes>
               </artifactSet>
               <shadedArtifactAttached>true</shadedArtifactAttached>
-              <shadedClassifierName>shade-format-flatbuffers</shadedClassifierName>
-              <keepDependenciesWithProvidedScope>true</keepDependenciesWithProvidedScope>
-              <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+              <shadedClassifierName>shade</shadedClassifierName>
+              <createDependencyReducedPom>true</createDependencyReducedPom>
+              <useDependencyReducedPomInJar>true</useDependencyReducedPomInJar>
               <relocations>
                 <relocation>
                   <pattern>com.google.flatbuffers</pattern>

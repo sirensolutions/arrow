@@ -17,6 +17,62 @@
   under the License.
 -->
 
+# Siren fork of Arrow
+
+The properties `drill.enable_unsafe_memory_access` and
+  `arrow.enable_unsafe_memory_access` are prefixed with `siren` and their
+  default value is set to `true`. The first property is deprecated.
+
+## Check that Arrow uses Unsafe class to access off-heap memory for memory allocation
+In order to check that Arrow uses Unsafe class for memory allocation, run the unit test `CheckArrowTest` in 
+  `https://github.com/sirensolutions/siren-platform/blob/master/core/src/test/java/io/siren/federate/core/common/CheckArrowTest.java`.
+
+## Build
+
+To build the `memory`, `format` and `vector` modules:
+
+```sh
+$ cd java
+$ mvn clean package
+```
+
+Because of the default value change of `unsafe_memory_access` property, some
+tests in `vector` fail.
+
+```sh
+mvn -pl maven,maven/module-info-compiler-maven-plugin,memory,memory/memory-core,memory/memory-unsafe,format,vector install -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
+```
+
+## Make a new release of Siren's Apache Arrow
+
+- Tests should pass.
+
+- Make a new version:
+
+```sh
+mvn versions:set -DnewVersion=siren-0.14.1-2
+```
+
+- tag the commit for the release
+
+```sh
+git tag --sign siren-0.14.1-2
+````
+
+- Deploy to Siren's artifactory
+
+```sh
+$ mvn deploy -DskipTests=true -P artifactory -Dartifactory_username=<USERNAME> -Dartifactory_password=<PASSWORD>
+```
+
+## Update to a new version of Siren's Apache Arrow
+Developer tips on updating to a new version of Arrow can be found here: https://sirensolutions.atlassian.net/wiki/spaces/EN/pages/3108864001/Upgrading+Federate+Apache+Arrow+Version .
+
+- add `git@github.com:apache/arrow.git` as the `upstream` remote.
+- execute `git fetch --all --tags`
+- create a temporary branch from `siren-changes`
+- rebase against the new tag.
+
 # Apache Arrow
 
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/arrow.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:arrow)

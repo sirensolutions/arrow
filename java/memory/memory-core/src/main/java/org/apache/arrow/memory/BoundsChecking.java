@@ -34,14 +34,15 @@ public class BoundsChecking {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(BoundsChecking.class);
 
   static {
-    String envProperty = System.getenv("ARROW_ENABLE_UNSAFE_MEMORY_ACCESS");
-    String oldProperty = System.getProperty("drill.enable_unsafe_memory_access");
+    String envProperty = System.getenv().getOrDefault("SIREN_ARROW_ENABLE_UNSAFE_MEMORY_ACCESS", "true");
+    String oldProperty = System.getProperty("siren.drill.enable_unsafe_memory_access", "true");
     if (oldProperty != null) {
-      logger.warn("\"drill.enable_unsafe_memory_access\" has been renamed to \"arrow.enable_unsafe_memory_access\"");
-      logger.warn("\"arrow.enable_unsafe_memory_access\" can be set to: " +
-              " true (to not check) or false (to check, default)");
+      logger.warn("\"siren.drill.enable_unsafe_memory_access\" has been renamed to " +
+              "\"siren.arrow.enable_unsafe_memory_access\"");
+      logger.warn("\"siren.arrow.enable_unsafe_memory_access\" can be set to: " +
+              " true (to not check, default) or false (to check)");
     }
-    String newProperty = System.getProperty("arrow.enable_unsafe_memory_access");
+    String newProperty = System.getProperty("siren.arrow.enable_unsafe_memory_access", "true");
 
     // The priority of determining the unsafe flag:
     // 1. The system properties take precedence over the environmental variable.

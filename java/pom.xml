@@ -20,7 +20,7 @@
 
   <groupId>org.apache.arrow</groupId>
   <artifactId>arrow-java-root</artifactId>
-  <version>15.0.0</version>
+  <version>siren-15.0.0-2-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Apache Arrow Java Root POM</name>
@@ -349,7 +349,7 @@
             </goals>
             <configuration>
               <ignoreNonCompile>true</ignoreNonCompile>
-              <failOnWarning>true</failOnWarning>
+              <failOnWarning>false</failOnWarning>
               <ignoredDependencies>
                 <!-- source annotations (not kept in compiled code) -->
                 <ignoredDependency>javax.annotation:javax.annotation-api:*</ignoredDependency>
@@ -602,7 +602,7 @@
       <dependency>
         <groupId>org.apache.arrow</groupId>
         <artifactId>arrow-bom</artifactId>
-        <version>${project.version}</version>
+        <version>15.0.0</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -792,17 +792,18 @@
 
   <modules>
     <module>maven</module>
-    <module>bom</module>
+    <!--<module>bom</module>-->
     <module>format</module>
     <module>memory</module>
     <module>vector</module>
-    <module>tools</module>
-    <module>adapter/jdbc</module>
-    <module>flight</module>
-    <module>performance</module>
-    <module>algorithm</module>
-    <module>adapter/avro</module>
-    <module>compression</module>
+    <!--<module>tools</module>-->
+    <!--<module>adapter/jdbc</module>-->
+    <!--<module>plasma</module>-->
+    <!--<module>flight</module>-->
+    <!--<module>performance</module>-->
+    <!--<module>algorithm</module>-->
+    <!--<module>adapter/avro</module>-->
+    <!--<module>compression</module>-->
   </modules>
 
   <profiles>
@@ -1293,6 +1294,25 @@
         </plugins>
       </build>
     </profile>
+
+    <!-- To deploy to Siren artifactory -->
+    <profile>
+      <id>artifactory</id>
+
+      <distributionManagement>
+        <repository>
+          <id>artifactory-releases</id>
+          <name>artifactory-releases</name>
+          <url>${artifactory.url}/libs-release-local</url>
+        </repository>
+        <snapshotRepository>
+          <id>artifactory-snapshots</id>
+          <name>artifactory-snapshots</name>
+          <url>${artifactory.url}/libs-snapshot-local</url>
+        </snapshotRepository>
+      </distributionManagement>
+    </profile>
+
   </profiles>
 
 </project>
