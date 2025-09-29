@@ -29,7 +29,7 @@ In order to check that Arrow uses Unsafe class for memory allocation, run the un
 
 ## Build
 
-To build the `memory`, `format` and `vector` modules:
+To build the `memory`, `format`, `vector` and `algorithm` modules:
 
 ```sh
 $ cd java
@@ -40,7 +40,7 @@ Because of the default value change of `unsafe_memory_access` property, some
 tests in `vector` fail.
 
 ```sh
-mvn -pl maven,maven/module-info-compiler-maven-plugin,memory,memory/memory-core,memory/memory-unsafe,format,vector install -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
+mvn -pl maven,maven/module-info-compiler-maven-plugin,memory,memory/memory-core,memory/memory-unsafe,format,vector,algorithm install -Dsiren.arrow.enable_unsafe_memory_access=false -Dsiren.drill.enable_unsafe_memory_access=false
 ```
 
 ## Make a new release of Siren's Apache Arrow
