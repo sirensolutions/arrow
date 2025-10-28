@@ -806,7 +806,7 @@
     <!--<module>plasma</module>-->
     <!--<module>flight</module>-->
     <!--<module>performance</module>-->
-    <!--<module>algorithm</module>-->
+    <module>algorithm</module>
     <!--<module>adapter/avro</module>-->
     <!--<module>compression</module>-->
   </modules>
